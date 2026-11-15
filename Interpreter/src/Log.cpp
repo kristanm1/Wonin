@@ -1,7 +1,7 @@
-#include "Log.h"
+#include "Log.hpp"
 #include <iostream>
 
-void Wonin::LogImpl(std::string const& s)
+void Wonin::Log::LogImpl(std::string const& s)
 {
     std::cout << s << std::endl;
 }

@@ -8,7 +8,11 @@ project(Interpreter)
 
 add_executable(Interpreter
     src/Log.cpp
+    src/Utils.cpp
+    src/Token.cpp
     src/Scanner.cpp
     src/Parser.cpp
+    src/Visitor.cpp
     src/Interpreter.cpp
-    src/Main.cpp)
+    src/Main.cpp
+)

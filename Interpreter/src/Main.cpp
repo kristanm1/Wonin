@@ -1,57 +1,37 @@
-#include "Log.h"
-#include "Expression.h"
-#include "Visitor.h"
-#include "Scanner.h"
-#include "Parser.h"
-
-#include <memory>
+#include "Log.hpp"
+#include "Utils.hpp"
+#include "Scanner.hpp"
+#include "Parser.hpp"
 
 void Scan(std::string path)
 {
-    Wonin::Scanner scanner{};
-    if (scanner.LoadText(path))
-    {
-        if (scanner.ScanTokens())
-        {
-            //scanner.Display();
+    std::string source = Wonin::Utils::LoadText(path);
 
-            Wonin::Parser parser(scanner);
-            Wonin::Expression *expr = parser.Parse();
+    Wonin::Scanner scanner(source);
+    std::vector<Wonin::Token> tokens = scanner.ScanTokens();
 
-            Wonin::Interpreter in;
-            expr->Accept(in);
-            Wonin::Info("Result ", in.result);
-        }
-    }
-}
+    //scanner.PrintTokens(tokens);
 
-void Expr()
-{
-    auto expr = std::make_unique<Wonin::Binary>(
-        new Wonin::Unary(
-            Wonin::Token::Type::Minus,
-            new Wonin::Number(3.2)
-        ),
-        Wonin::Token::Type::Plus,
-        new Wonin::Binary(
-            new Wonin::Number(4.0),
-            Wonin::Token::Type::Star,
-            new Wonin::Number(5.0)
-        )
-    );
-
+    if (scanner.HasError())
+        return;
+    
+    Wonin::Parser parser(scanner, tokens);
+    Wonin::ExprPtr expr = parser.Parse();
+        
+    if (parser.HasError())
+        return;
+    
     Wonin::Interpreter in;
-    expr->Accept(in);
-    Wonin::Info("Result ", in.result);
+    Wonin::Value value = expr->Accept(in);
+    Wonin::Log::Info("Result ", value.GetNumber());
 }
 
 int main(int argc, char *argv[])
 {
-    // https://craftinginterpreters.com/parsing-expressions.html
+    // https://craftinginterpreters.com/representing-code.html
 
     //Scan("../../Interpreter/src/besedilo.txt");
     Scan("../../Interpreter/src/expression.txt");
-    //Expr();
 
     return 0;
 }

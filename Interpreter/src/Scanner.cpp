@@ -1,211 +1,190 @@
-#include "Scanner.h"
-#include "Log.h"
-#include <fstream>
+#include "Scanner.hpp"
+#include "Log.hpp"
 
-bool Wonin::Scanner::LoadText(std::string const& path)
+#include <sstream>
+#include <string_view>
+#include <unordered_map>
+
+using namespace Wonin;
+using Type = Token::Type;
+
+namespace
 {
-    std::fstream s(path, std::ifstream::in | std::ifstream::binary);
-    if (!s.is_open())
+    struct MapHash
     {
-        Wonin::Error("File ", path, " does not exist!");
-        return false;
-    }
+        using is_transparent = void;
+        size_t operator()(std::string_view sv) const noexcept { return std::hash<std::string_view>{}(sv);}
+    };
 
-    std::streampos pos = s.seekg(0, std::ios::end).tellg();
-    if (std::streampos(-1) == pos)
+    std::unordered_map<std::string, Type, MapHash, std::equal_to<>> s_keywords =
     {
-        Wonin::Error("End of file ", path ," could not be found!");
-        return false;
-    }
-
-    s.seekg(0, std::ios::beg);
-    size_t size = static_cast<size_t>(pos);
-
-    m_src = std::move(std::string(size, '\0'));
-    s.read(&m_src[0], size);
-
-    return true;
+        { "and",    Type::And },
+        { "or" ,    Type::Or },
+        { "if" ,    Type::If },
+        { "else",   Type::Else },
+        { "true",   Type::True },
+        { "false",  Type::False },
+        { "class",  Type::Class }, 
+        { "this",   Type::This },
+        { "super",  Type::Super },
+        { "fun",    Type::Fun },
+        { "var",    Type::Var },
+        { "for",    Type::For },
+        { "while",  Type::While },
+        { "print",  Type::Print },
+        { "nil",    Type::Nil },
+        { "return", Type::Return },
+    };
 }
 
-void Wonin::Scanner::AddToken(Wonin::Token::Type type, unsigned length)
+void Scanner::PrintTokens(std::vector<Token> const& tokens)
 {
-    m_tokens.emplace_back(type, m_position, length, m_line);
-}
-
-unsigned Wonin::Scanner::ScanToken()
-{
-    using Type = Wonin::Token::Type;
-
-    char c = m_src[m_position];
-    switch (c)
+    for (auto const& t : tokens)
     {
-        case '(':
-            AddToken(Type::LeftParenthesis, 1);
-            return 1;
-        case ')':
-            AddToken(Type::RightParenthesis, 1);
-            return 1;
-        case '{':
-            AddToken(Type::LeftCurlyBracket, 1);
-            return 1;
-        case '}':
-            AddToken(Type::RightCurlyBracket, 1);
-            return 1;
-        case '+':
-            AddToken(Type::Plus, 1);
-            return 1;
-        case '-':
-            AddToken(Type::Minus, 1);
-            return 1;
-        case '*':
-            AddToken(Type::Star, 1);
-            return 1;
-        case '|':
-            if (IsMatchAt('|', 1))
-            {
-                AddToken(Type::Or, 2);
-                return 2;
-            }
-
-            m_errors++;
-            Wonin::Error("Unknown token | at line ", m_line);
-            return 1;
-        case '&':
-            if (IsMatchAt('&', 1))
-            {
-                AddToken(Type::And, 2);
-                return 2;
-            }
-
-            m_errors++;
-            Wonin::Error("Unknown token & at line ", m_line);
-            return 1;
-        case '!':
-            if (IsMatchAt('=', 1))
-            {
-                AddToken(Type::NotEqual, 2);
-                return 2;
-            }
-
-            AddToken(Type::Negation, 1);
-            return 1;
-        case '=':
-            if (IsMatchAt('=', 1))
-            {
-                AddToken(Type::Equal, 2);
-                return 2;
-            }
-
-            AddToken(Type::Assignment, 1);
-            return 1;
-        case '<':
-            if (IsMatchAt('=', 1))
-            {
-                AddToken(Type::LessOrEqual, 2);
-                return 2;
-            }
-
-            AddToken(Type::Less, 1);
-            return 1;
-        case '>':
-            if (IsMatchAt('=', 1))
-            {
-                AddToken(Type::GreaterOrEqual, 2);
-                return 2;
-            }
-
-            AddToken(Type::Greater, 1);
-            return 1;
-        case '/':
-            if (IsMatchAt('/', 1))
-            {
-                int offset = 2;
-                while (!IsAtEnd(offset))
-                {
-                    if (IsMatchAt('\n', offset))
-                    {
-                        break;
-                    }
-                    offset++;
-                }
-                return offset;
-            }
-            
-            AddToken(Type::Slash, 1);
-            return 1;
-        case '"':
+        usize end = t.m_position + t.m_length;
+        std::stringstream ss;
+        for (usize i = t.m_position; i < end; i++)
         {
-            int offset = 1;
-            for (;;offset++)
-            {
-                if (IsAtEnd(offset) || IsMatchAt('\n', offset))
-                {
-                    m_errors++;
-                    Wonin::Error("Unterminated string literal at line ", m_line);
-                    break;
-                }
-
-                if (IsMatchAt('"', offset))
-                {
-                    AddToken(Type::StringLiteral, ++offset);
-                    break;
-                }
-            }
-            return offset;
+            ss << m_source[i];
         }
+        Log::Info(t.ToString(), " ", ss.str(), " at line ", t.m_line);
+    }
+}
+
+void Scanner::ScannerError(std::string message)
+{
+    m_hasError = true;
+    Log::Error("Scanner error at line ", m_line, ": " , message);
+}
+
+void Scanner::ScannerError(char character)
+{
+    ScannerError((std::stringstream{} << "Unexpected character " << std::string(1, character)).str());
+}
+
+Token Scanner::MatchLineComment()
+{
+    usize offset = 2;
+    while (!IsAtEnd(offset))
+    {
+        if (IsMatchAt('\n', offset))
+        {
+            break;
+        }
+        offset++;
+    }
+    return Token(m_position, m_line, offset, Type::Sentinel);
+}
+
+Token Scanner::MatchString()
+{
+    int offset = 1;
+    while (!IsMatchAt(offset, '\n'))
+        if (m_source[m_position + offset++] == '"')
+            return Token(m_position, m_line, offset, Type::String);
+
+    m_hasError = true;
+    ScannerError("Unterminated string literal");
+    return Token(m_position, m_line, offset, Type::Sentinel);
+}
+
+Token Scanner::MatchDigit()
+{
+    usize offset = 1;
+    for (;!IsAtEnd(offset) && IsDigitAt(offset); offset++)
+    {}
+
+    if (IsMatchAt('.', offset))
+        for (offset++; !IsAtEnd(offset) && IsDigitAt(offset); offset++)
+        {}
+
+    return Token(m_position, m_line, offset, Type::Number);
+}
+
+Token Scanner::MatchIdentifier()
+{
+    usize offset = 1;
+    while (!IsAtEnd(offset) && Utils::IsAlphaNumeric(m_source[m_position + offset]))
+        offset++;
+
+    auto it = s_keywords.find(std::string_view(&m_source[m_position], offset));
+    if (it != s_keywords.end())
+        return Token(m_position, m_line, offset, it->second);    
+
+    return Token(m_position, m_line, offset, Type::Identifier);
+}
+
+Token Scanner::MatchKeyword()
+{
+    return Token(0, 0, 0, Type::Sentinel);
+}
+
+Token Scanner::GetNextToken()
+{
+    switch (m_source[m_position])
+    {
+        case '(': return Token(m_position, m_line, 1, Type::LeftParen);
+        case ')': return Token(m_position, m_line, 1, Type::RightParen);
+        case '{': return Token(m_position, m_line, 1, Type::LeftBrace);
+        case '}': return Token(m_position, m_line, 1, Type::RightBrace);
+        case ';': return Token(m_position, m_line, 1, Type::Semicolon);
+        case '+': return Token(m_position, m_line, 1, Type::Plus);
+        case '-': return Token(m_position, m_line, 1, Type::Minus);
+        case '*': return Token(m_position, m_line, 1, Type::Star);
+        case '/': return IsMatchAt('/', 1)
+            ? MatchLineComment()
+            : Token(m_position, m_line, 1, Type::Slash);
+
+        case '!': return IsMatchAt('=', 1)
+            ? Token(m_position, m_line, 2, Type::BangEqual)
+            : Token(m_position, m_line, 1, Type::Bang);
+        case '=': return IsMatchAt('=', 1)
+            ? Token(m_position, m_line, 2, Type::EqualEqual)
+            : Token(m_position, m_line, 1, Type::Equal);
+        case '>': return IsMatchAt('=', 1)
+            ? Token(m_position, m_line, 2, Type::GreaterEqual)
+            : Token(m_position, m_line, 2, Type::Greater);
+        case '<': return IsMatchAt('=', 1)
+            ? Token(m_position, m_line, 2, Type::LessEqual)
+            : Token(m_position, m_line, 1, Type::Less);
+
+        case '"': return MatchString();
         case ' ':
         case '\t':
-        case '\r':
-            return 1;
-        case '\n':
-            m_line++;
-            return 1;
+        case '\r': return Token(m_position, m_line, 1, Type::Sentinel);
+        case '\n': return Token(m_position, m_line + 1, 1, Type::Sentinel);
         default:
-            if (IsDigit(c))
-            {
-                unsigned offset = 1;
-                for (;!IsAtEnd(offset) && IsDigitAt(offset); offset++)
-                {}
+            if (Utils::IsDigit(m_source[m_position]))
+                return MatchDigit();
+            else if(Utils::IsAlpha(m_source[m_position]))
+                return MatchIdentifier();
 
-                if (IsMatchAt('.', offset))
-                {
-                    for (offset++; !IsAtEnd(offset) && IsDigitAt(offset); offset++)
-                    {}
-                }
-
-                AddToken(Type::NumberLiteral, offset);
-                return offset;
-            }
-
-            m_errors++;
-            Wonin::Error("Unknown token: ", c, " in line: ", m_line);
-            return 1;
+            ScannerError(m_source[m_position]);
+            return Token(m_position, m_line, 1, Type::Sentinel);
     }
 
 }
 
-bool Wonin::Scanner::ScanTokens()
+std::vector<Token> Scanner::ScanTokens()
 {
-    m_errors = 0;
+    std::vector<Token> tokens;
+    m_position = 0;
     m_line = 1;
-    for (m_position = 0; m_position < m_src.size(); m_position += ScanToken())
-    {}
-    
-    AddToken(Wonin::Token::Type::EoF, 1);
-    
-    return m_errors == 0;
-}
+    m_hasError = false;
 
-void Wonin::Scanner::Display()
-{
-    for (auto const& t : m_tokens)
+    while (m_position < m_source.size())
     {
-        unsigned end = t.m_position + t.m_length;
-        std::stringstream ss;
-        for (unsigned i = t.m_position; i < end; i++)
+        Token token = GetNextToken();
+        if (token.m_type != Type::Sentinel)
         {
-            ss << m_src[i];
+            tokens.push_back(token);
         }
-        Wonin::Info(t.ToString(), " ", ss.str(), " at line ", t.m_line);
+
+        m_position += token.m_length;
+        m_line = token.m_line;
     }
+    
+    tokens.emplace_back(m_position, m_line, 0, Type::EoF);
+    
+    return tokens;
 }
