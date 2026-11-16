@@ -16,22 +16,25 @@ void Scan(std::string path)
         return;
     
     Wonin::Parser parser(scanner, tokens);
-    Wonin::ExprPtr expr = parser.Parse();
+    std::vector<Wonin::StmtPtr> stmts = parser.Parse();
         
     if (parser.HasError())
         return;
     
-    Wonin::Interpreter in;
-    Wonin::Value value = expr->Accept(in);
-    Wonin::Log::Info("Result ", value.GetNumber());
+    for (auto const& stmt : stmts)
+    {
+        Wonin::Interpreter in;
+        stmt->Accept(in);
+    }
 }
 
 int main(int argc, char *argv[])
 {
     // https://craftinginterpreters.com/representing-code.html
 
-    //Scan("../../Interpreter/src/besedilo.txt");
-    Scan("../../Interpreter/src/expression.txt");
+    //Scan("../../Interpreter/res/besedilo.txt");
+    //Scan("../../Interpreter/res/expression.txt");
+    Scan("../../Interpreter/res/statements.txt");
 
     return 0;
 }

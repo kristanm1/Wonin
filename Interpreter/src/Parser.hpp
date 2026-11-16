@@ -1,10 +1,12 @@
 #ifndef _WONIN_PARSER_
 #define _WONIN_PARSER_
 
-#include "Statement.hpp"
 #include "Types.hpp"
 #include "Scanner.hpp"
 #include "Expr.hpp"
+#include "Stmt.hpp"
+
+#include <vector>
 
 namespace Wonin
 {
@@ -20,9 +22,14 @@ namespace Wonin
             OnlyEofToken,
         };
 
-        ParserError(Type type) : m_type(type) {}
-        char const* GetMessage() const override;
+        ParserError(Type type, Token const& token)
+            : m_type(type)
+            , m_token(token)
+        {}
+        
+        std::string GetMessage() const override;
     private:
+        Token const& m_token;
         Type m_type;
     };
 
@@ -30,30 +37,37 @@ namespace Wonin
     {
     public:
         Parser(Scanner const& scanner, std::vector<Token> const& tokens);
-        ExprPtr Parse();
+        std::vector<StmtPtr> Parse();
 
         bool HasError() { return m_hasError; }
 
     private:
-        bool IsAtEnd() { return m_tokens[m_position].m_type == Token::Type::EoF; }
-        bool IsMatch(Token::Type type) { return !IsAtEnd() && m_tokens[m_position].m_type == type; }
+        bool IsAtEnd()
+        {
+            return m_tokens[m_position].GetType() == Token::Type::EoF;
+        }
+
+        bool IsMatch(Token::Type type)
+        {
+            return !IsAtEnd() && m_tokens[m_position].GetType() == type;
+        }
 
         template<unsigned N>
         bool IsMatch(Token::Type const* types);
 
         void Sync();
 
-        //Statement* PrintStatement();
-        //Statement* ExpressionStatement();
-        //Statement* Statement();
+        StmtPtr ParseStmt();
+        StmtPtr ParseStmtExpr();
+        StmtPtr ParseStmtPrint();
 
         ExprPtr ParseExpr();
-        ExprPtr ParseEquality();
-        ExprPtr ParseComparison();
-        ExprPtr ParseTerm();
-        ExprPtr ParseFactor();
-        ExprPtr ParseUnary();
-        ExprPtr ParsePrimary();
+        ExprPtr ParseExprEquality();
+        ExprPtr ParseExprComparison();
+        ExprPtr ParseExprTerm();
+        ExprPtr ParseExprFactor();
+        ExprPtr ParseExprUnary();
+        ExprPtr ParseExprPrimary();
 
         unsigned m_position = 0;
         Scanner const& m_scanner;

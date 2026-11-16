@@ -39,15 +39,16 @@ namespace
 
 void Scanner::PrintTokens(std::vector<Token> const& tokens)
 {
-    for (auto const& t : tokens)
+    for (usize i = 0; i < tokens.size(); i++)
     {
-        usize end = t.m_position + t.m_length;
+        auto const& token = tokens[i];
+        usize end = token.GetPositios() + token.GetLength();
         std::stringstream ss;
-        for (usize i = t.m_position; i < end; i++)
+        for (usize j = token.GetPositios(); j < end; j++)
         {
-            ss << m_source[i];
+            ss << m_source[j];
         }
-        Log::Info(t.ToString(), " ", ss.str(), " at line ", t.m_line);
+        Log::Info(i, " ", token.ToString(), " ", ss.str(), " at line ", token.GetLine());
     }
 }
 
@@ -175,13 +176,13 @@ std::vector<Token> Scanner::ScanTokens()
     while (m_position < m_source.size())
     {
         Token token = GetNextToken();
-        if (token.m_type != Type::Sentinel)
+        if (token.GetType() != Type::Sentinel)
         {
             tokens.push_back(token);
         }
 
-        m_position += token.m_length;
-        m_line = token.m_line;
+        m_position += token.GetLength();
+        m_line = token.GetLine();
     }
     
     tokens.emplace_back(m_position, m_line, 0, Type::EoF);

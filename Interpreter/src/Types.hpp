@@ -1,6 +1,7 @@
 #ifndef _WONIN_USER_TYPES_
 #define _WONIN_USER_TYPES_
 
+#include <string>
 #include <cstdint>
 
 namespace Wonin
@@ -11,7 +12,7 @@ namespace Wonin
     {
     public:
         ~RuntimeError() = default;
-        virtual char const* GetMessage() const = 0;
+        virtual std::string GetMessage() const = 0;
     };
 }
 

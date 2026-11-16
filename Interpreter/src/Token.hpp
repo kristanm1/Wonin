@@ -8,8 +8,6 @@ namespace Wonin
 
     class Token
     {
-        friend class Scanner;
-        friend class Parser;
     public:
         enum class Type
         {
@@ -35,6 +33,12 @@ namespace Wonin
         };
 
         Token(usize position, usize line, usize length, Type type);
+
+        usize GetPositios() const { return m_position; }
+        usize GetLine() const { return m_line; }
+        usize GetLength() const { return m_length; }
+        Type GetType() const { return m_type; }
+
         char const* ToString() const { return ToString(m_type); }
 
         static char const* ToString(Token::Type type);
