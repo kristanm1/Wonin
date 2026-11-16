@@ -90,13 +90,13 @@ namespace Wonin
     {
         ~Visitor() = default;
 
-        virtual Value Visit(ExprLiteral const& num) = 0;
-        virtual Value Visit(ExprGrouping const& gro) = 0;
-        virtual Value Visit(ExprUnary const& una) = 0;
-        virtual Value Visit(ExprBinary const& bin) = 0;
+        virtual Value Visit(ExprLiteral const& num) const = 0;
+        virtual Value Visit(ExprGrouping const& gro) const = 0;
+        virtual Value Visit(ExprUnary const& una) const = 0;
+        virtual Value Visit(ExprBinary const& bin) const = 0;
 
-        virtual void Visit(StmtExpr const& exp) = 0;
-        virtual void Visit(StmtPrint const& exp) = 0;
+        virtual void Visit(StmtExpr const& exp) const = 0;
+        virtual void Visit(StmtPrint const& exp) const = 0;
     };
 
     class InterpreterError : RuntimeError
@@ -116,13 +116,13 @@ namespace Wonin
 
     struct Interpreter : Visitor
     {
-        Value Visit(ExprLiteral const& expr) override;
-        Value Visit(ExprGrouping const& expr) override;
-        Value Visit(ExprUnary const& expr) override;
-        Value Visit(ExprBinary const& expr) override;
+        Value Visit(ExprLiteral const& expr) const override;
+        Value Visit(ExprGrouping const& expr) const override;
+        Value Visit(ExprUnary const& expr) const override;
+        Value Visit(ExprBinary const& expr) const override;
 
-        void Visit(StmtExpr const& stmt) override;
-        void Visit(StmtPrint const& stmt) override;
+        void Visit(StmtExpr const& stmt) const override;
+        void Visit(StmtPrint const& stmt) const override;
     };
 
 }

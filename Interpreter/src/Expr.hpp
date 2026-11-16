@@ -12,7 +12,7 @@ namespace Wonin
     struct Expr
     {
         virtual ~Expr() = default;
-        virtual Value Accept(Visitor& visitor) const = 0;
+        virtual Value Accept(Visitor const& visitor) const = 0;
     };
 
     using ExprPtr = std::unique_ptr<Expr>;
@@ -24,7 +24,7 @@ namespace Wonin
             : m_data(std::forward<T>(data))
         {}
 
-        Value Accept(Visitor& visitor) const override
+        Value Accept(Visitor const& visitor) const override
         {
             return visitor.Visit(*this);
         }
@@ -38,7 +38,7 @@ namespace Wonin
             : m_expr(std::move(expr))
         {}
 
-        Value Accept(Visitor& visitor) const override
+        Value Accept(Visitor const& visitor) const override
         {
             return visitor.Visit(*this);
         }
@@ -52,7 +52,7 @@ namespace Wonin
             , m_expr(std::move(expr))
         {}
 
-        Value Accept(Visitor& visitor) const override
+        Value Accept(Visitor const& visitor) const override
         {
             return visitor.Visit(*this);
         }
@@ -69,7 +69,7 @@ namespace Wonin
             , m_right(std::move(right))
         {}
 
-        Value Accept(Visitor& visitor) const override
+        Value Accept(Visitor const& visitor) const override
         {
             return visitor.Visit(*this);
         }

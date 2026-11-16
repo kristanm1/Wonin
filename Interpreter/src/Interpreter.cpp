@@ -16,17 +16,17 @@ std::string InterpreterError::GetMessage() const
     }
 }
 
-Value Interpreter::Visit(ExprLiteral const& expr)
+Value Interpreter::Visit(ExprLiteral const& expr) const
 {
     return expr.m_data;
 }
 
-Value Interpreter::Visit(ExprGrouping const& expr)
+Value Interpreter::Visit(ExprGrouping const& expr) const
 {
     return expr.m_expr->Accept(*this);
 }
 
-Value Interpreter::Visit(ExprUnary const& expr)
+Value Interpreter::Visit(ExprUnary const& expr) const
 {
     Value value = expr.m_expr->Accept(*this);
     if (expr.m_token.GetType() == Token::Type::Minus)
@@ -35,7 +35,7 @@ Value Interpreter::Visit(ExprUnary const& expr)
         throw InterpreterError(InterpreterError::Type::UnkUnaOp);
 }
 
-Value Interpreter::Visit(ExprBinary const& expr)
+Value Interpreter::Visit(ExprBinary const& expr) const
 {
     Value left = expr.m_left->Accept(*this);
     Value right = expr.m_right->Accept(*this);
@@ -51,12 +51,12 @@ Value Interpreter::Visit(ExprBinary const& expr)
     throw Wonin::InterpreterError(Wonin::InterpreterError::Type::UnkBinOp);
 }
 
-void Interpreter::Visit(StmtExpr const& stmt)
+void Interpreter::Visit(StmtExpr const& stmt) const
 {
     stmt.m_expr->Accept(*this);
 }
 
-void Interpreter::Visit(StmtPrint const& stmt)
+void Interpreter::Visit(StmtPrint const& stmt) const
 {
     Value value = stmt.m_expr->Accept(*this);
     if (value.IsNumber())

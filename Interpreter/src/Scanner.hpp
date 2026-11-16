@@ -14,19 +14,32 @@ namespace Wonin
     {
         friend class Parser;
     public:
-        Scanner(std::string const& source) : m_source(source) {};
-        std::vector<Token> ScanTokens();
+        Scanner(std::string const& source)
+            : m_source(source)
+        {};
 
-        bool HasError() { return m_hasError; }
+        std::vector<Token> ScanTokens();
         void PrintTokens(std::vector<Token> const& tokens);
+        bool HasError() { return m_hasError; }
 
     private:
         void ScannerError(std::string message);
         void ScannerError(char character);
 
-        bool IsAtEnd(usize offset) { return m_position + offset >= m_source.size(); }
-        bool IsMatchAt(char c, usize offset) { return !IsAtEnd(offset) && c == m_source[m_position + offset]; }
-        bool IsDigitAt(usize offset) { return Utils::IsDigit(m_source[m_position + offset]); }
+        bool IsAtEnd(usize offset)
+        {
+            return m_position + offset >= m_source.size();
+        }
+
+        bool IsMatchAt(char c, usize offset)
+        {
+            return !IsAtEnd(offset) && c == m_source[m_position + offset];
+        }
+
+        bool IsDigitAt(usize offset)
+        {
+            return Utils::IsDigit(m_source[m_position + offset]);
+        }
 
         void AddToken(usize length, Token::Type type, std::vector<Token> tokens);
 
