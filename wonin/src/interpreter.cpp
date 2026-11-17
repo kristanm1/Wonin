@@ -68,7 +68,9 @@ void Interpreter::Visit(StmtPrint const& stmt) const
 {
     Value value = stmt.m_expr->Accept(*this);
     if (value.IsNumber())
-    {
         Log::Info(value.GetNumber());
-    }
+    else if (value.IsString())
+        Log::Info(value.GetString());
+    else if (value.IsBool())
+        Log::Info(value.GetBool() ? "true" : "false");
 }
