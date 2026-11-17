@@ -1,7 +1,7 @@
 #ifndef _WONIN_TOKEN_
 #define _WONIN_TOKEN_
 
-#include "Types.hpp"
+#include "types.hpp"
 
 namespace Wonin
 {

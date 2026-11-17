@@ -1,8 +1,8 @@
-#include "Visitor.hpp"
-#include "Scanner.hpp"
-#include "Log.hpp"
-#include "Expr.hpp"
-#include "Stmt.hpp"
+#include "interpreter.hpp"
+#include "scanner.hpp"
+#include "log.hpp"
+#include "expr.hpp"
+#include "stmt.hpp"
 
 using namespace Wonin;
 
@@ -13,6 +13,14 @@ std::string InterpreterError::GetMessage() const
         case Type::UnkUnaOp: return "Unknown unary operator";
         case Type::UnkBinOp: return "Unknown binary operator";
         default: return "Unknown interpreter error";
+    }
+}
+
+void Interpreter::Interpret(std::vector<StmtPtr> const& stmts) const
+{
+    for (auto const& stmt : stmts)
+    {
+        stmt->Accept(*this);
     }
 }
 

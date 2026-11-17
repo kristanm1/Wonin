@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(Wonin)
+project(Example)
 
-add_subdirectory(Interpreter)
+add_subdirectory(wonin)
+add_subdirectory(example)

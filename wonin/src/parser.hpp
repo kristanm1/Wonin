@@ -1,10 +1,10 @@
 #ifndef _WONIN_PARSER_
 #define _WONIN_PARSER_
 
-#include "Types.hpp"
-#include "Scanner.hpp"
-#include "Expr.hpp"
-#include "Stmt.hpp"
+#include "types.hpp"
+#include "scanner.hpp"
+#include "expr.hpp"
+#include "stmt.hpp"
 
 #include <vector>
 

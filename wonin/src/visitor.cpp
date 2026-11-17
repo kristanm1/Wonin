@@ -1,4 +1,4 @@
-#include "Visitor.hpp"
+#include "visitor.hpp"
 
 using namespace Wonin;
 

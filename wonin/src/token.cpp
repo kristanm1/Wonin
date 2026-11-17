@@ -1,4 +1,4 @@
-#include "Token.hpp"
+#include "token.hpp"
 
 Wonin::Token::Token(usize position, usize line, usize length, Type type)
     : m_type(type)

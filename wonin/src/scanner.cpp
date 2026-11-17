@@ -1,5 +1,5 @@
-#include "Scanner.hpp"
-#include "Log.hpp"
+#include "scanner.hpp"
+#include "log.hpp"
 
 #include <sstream>
 #include <string_view>

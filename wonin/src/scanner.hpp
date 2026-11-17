@@ -1,9 +1,9 @@
 #ifndef _WONIN_SCANNER_
 #define _WONIN_SCANNER_
 
-#include "Types.hpp"
-#include "Utils.hpp"
-#include "Token.hpp"
+#include "types.hpp"
+#include "utils.hpp"
+#include "token.hpp"
 
 #include <vector>
 

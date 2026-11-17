@@ -1,7 +1,7 @@
 #ifndef _WONIN_VISITOR_
 #define _WONIN_VISITOR_
 
-#include "Types.hpp"
+#include "types.hpp"
 
 #include <string>
 #include <variant>
@@ -112,17 +112,6 @@ namespace Wonin
         std::string GetMessage() const;
     private:
         Type m_type;
-    };
-
-    struct Interpreter : Visitor
-    {
-        Value Visit(ExprLiteral const& expr) const override;
-        Value Visit(ExprGrouping const& expr) const override;
-        Value Visit(ExprUnary const& expr) const override;
-        Value Visit(ExprBinary const& expr) const override;
-
-        void Visit(StmtExpr const& stmt) const override;
-        void Visit(StmtPrint const& stmt) const override;
     };
 
 }

@@ -1,9 +1,10 @@
-#include "Parser.hpp"
-#include "Log.hpp"
+#include "parser.hpp"
+#include "log.hpp"
 
 #include <sstream>
 
 using namespace Wonin;
+using Type = Token::Type;
 
 std::string ParserError::GetMessage() const
 {
@@ -57,7 +58,7 @@ std::vector<StmtPtr> Parser::Parse()
 }
 
 template<unsigned N>
-bool Parser::IsMatch(Token::Type const* types)
+bool Parser::IsMatch(Type const* types)
 {
     for (unsigned i = 0; i < N; i++)
     {
@@ -72,27 +73,27 @@ bool Parser::IsMatch(Token::Type const* types)
 
 void Parser::Sync()
 {
-    for (; !IsAtEnd(); m_position++)
-    {
-        switch (m_tokens[m_position].GetType())
-        {
-            case Token::Type::Semicolon:
-            case Token::Type::Class:
-            case Token::Type::Fun:
-            case Token::Type::Var:
-            case Token::Type::For:
-            case Token::Type::If:
-            case Token::Type::While:
-            case Token::Type::Print:
-            case Token::Type::Return:
-                return;
-        }
+    Type tokens[] = {
+        Type::Semicolon,
+        Type::Class,
+        Type::Fun,
+        Type::Var,
+        Type::For,
+        Type::If,
+        Type::While,
+        Type::Print,
+        Type::Return,
+        Type::EoF,
+    };
+    for (; !IsMatch<9>(tokens); m_position++) {
+        if (IsAtEnd())
+            return;
     }
 }
 
 StmtPtr Parser::ParseStmt()
 {
-    if (IsMatch(Token::Type::Print))
+    if (IsMatch(Type::Print))
     {
         m_position++;
         return ParseStmtPrint();
@@ -104,7 +105,7 @@ StmtPtr Parser::ParseStmt()
 StmtPtr Parser::ParseStmtExpr()
 {
     ExprPtr expr = ParseExpr();
-    if (IsMatch(Token::Type::Semicolon))
+    if (IsMatch(Type::Semicolon))
     {
         m_position++;
         return std::make_unique<StmtExpr>(std::move(expr));
@@ -116,7 +117,7 @@ StmtPtr Parser::ParseStmtExpr()
 StmtPtr Parser::ParseStmtPrint()
 {
     ExprPtr expr = ParseExpr();
-    if (IsMatch(Token::Type::Semicolon))
+    if (IsMatch(Type::Semicolon))
     {
         m_position++;
         return std::make_unique<StmtPrint>(std::move(expr));
@@ -133,7 +134,7 @@ ExprPtr Parser::ParseExpr()
 
 ExprPtr Parser::ParseExprEquality()
 {
-    Token::Type tokens[] = { Token::Type::BangEqual, Token::Type::EqualEqual };
+    Type tokens[] = { Type::BangEqual, Type::EqualEqual };
     ExprPtr expr = ParseExprComparison();
     while (IsMatch<2>(tokens))
     {
@@ -147,7 +148,7 @@ ExprPtr Parser::ParseExprEquality()
 ExprPtr Parser::ParseExprComparison()
 {
     ExprPtr expr = ParseExprTerm();
-    Token::Type tokens[] = { Token::Type::Less, Token::Type::LessEqual, Token::Type::Greater, Token::Type::GreaterEqual };
+    Type tokens[] = { Type::Less, Type::LessEqual, Type::Greater, Type::GreaterEqual };
     while (IsMatch<4>(tokens))
     {
         Token const& token = m_tokens[m_position++];
@@ -159,7 +160,7 @@ ExprPtr Parser::ParseExprComparison()
 
 ExprPtr Parser::ParseExprTerm()
 {
-    Token::Type tokens[] = { Token::Type::Plus, Token::Type::Minus };
+    Type tokens[] = { Type::Plus, Type::Minus };
     ExprPtr expr = ParseExprFactor();
     while (IsMatch<2>(tokens))
     {
@@ -171,7 +172,7 @@ ExprPtr Parser::ParseExprTerm()
 }
 ExprPtr Parser::ParseExprFactor()
 {
-    Token::Type tokens[] = { Token::Type::Star, Token::Type::Slash };
+    Type tokens[] = { Type::Star, Type::Slash };
     ExprPtr expr = ParseExprUnary();
     while (IsMatch<2>(tokens))
     {
@@ -184,7 +185,7 @@ ExprPtr Parser::ParseExprFactor()
 
 ExprPtr Parser::ParseExprUnary()
 {
-    Token::Type tokens[] = { Token::Type::Minus };
+    Type tokens[] = { Type::Minus };
     if (IsMatch<1>(tokens))
     {
         Token const& token = m_tokens[m_position++];
@@ -196,7 +197,7 @@ ExprPtr Parser::ParseExprUnary()
 
 ExprPtr Parser::ParseExprPrimary()
 {
-    if (IsMatch(Token::Type::Number))
+    if (IsMatch(Type::Number))
     {
         Token const& token = m_tokens[m_position++];
         char const* begin = &m_scanner.m_source[token.GetPositios()];
@@ -204,17 +205,17 @@ ExprPtr Parser::ParseExprPrimary()
         return std::make_unique<ExprLiteral>(std::strtod(begin, &end));
     }
 
-    if (IsMatch(Token::Type::String))
+    if (IsMatch(Type::String))
     {
         Token const& token = m_tokens[m_position++];
         return std::make_unique<ExprLiteral>(std::string(&m_scanner.m_source[token.GetPositios()], token.GetLength()));
     }
 
-    if (IsMatch(Token::Type::LeftParen))
+    if (IsMatch(Type::LeftParen))
     {
         m_position++;
         ExprPtr expr = ParseExpr();
-        if (IsMatch(Token::Type::RightParen))
+        if (IsMatch(Type::RightParen))
         {
             m_position++;
             return std::move(expr);

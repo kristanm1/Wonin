@@ -1,4 +1,4 @@
-#include "Utils.hpp"
+#include "utils.hpp"
 #include <fstream>
 
 std::string Wonin::Utils::LoadText(std::string const& path)
