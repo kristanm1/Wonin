@@ -8,20 +8,25 @@ using Type = Token::Type;
 
 std::string ParserError::GetMessage() const
 {
+    using Type = ParserError::Type;
+
     char const* cstr;
     switch (m_type)
     {
-        case ParserError::Type::PrimNoMatch:
+        case Type::PrimNoMatch:
             cstr = "Primary expression does not match";
             break;
-        case ParserError::Type::PrimMissRightParen:
+        case Type::PrimMissRightParen:
             cstr = "Primary expression missing closing parantesis";
             break;
-        case ParserError::Type::MissSemicolon:
+        case Type::MissSemicolon:
             cstr = "Expression is missing semicolon";
             break;
-        case ParserError::Type::OnlyEofToken:
+        case Type::OnlyEofToken:
             cstr = "Nothing to parse";
+            break;
+        case Type::DeclIdMiss:
+            cstr = "Declaration is missing identifier";
             break;
         default :
             cstr = "Unknown error";
@@ -30,31 +35,6 @@ std::string ParserError::GetMessage() const
     std::stringstream ss{};
     ss << cstr << ": " << "at line " << m_token.GetLine() << " found token type " << m_token.ToString();
     return ss.str();
-}
-
-Parser::Parser(Scanner const& scanner, std::vector<Token> const& tokens)
-    : m_scanner(scanner)
-    , m_tokens(tokens)
-{}
-
-std::vector<StmtPtr> Parser::Parse()
-{
-    m_position = 0;
-    m_hasError = false;
-    std::vector<StmtPtr> stmts{};
-    while (!IsAtEnd())
-    {
-        try
-        {
-            stmts.push_back(ParseStmt());
-        }
-        catch (RuntimeError const& ex)
-        {
-            Log::Error("Parser error: ", ex.GetMessage());
-            Sync();
-        }
-    }
-    return stmts;
 }
 
 template<unsigned N>
@@ -83,12 +63,61 @@ void Parser::Sync()
         Type::While,
         Type::Print,
         Type::Return,
-        Type::EoF,
     };
     for (; !IsMatch<9>(tokens); m_position++) {
         if (IsAtEnd())
             return;
     }
+}
+
+bool Parser::Parse()
+{
+    m_position = 0;
+    m_hasError = false;
+    while (!IsAtEnd())
+    {
+        try
+        {
+            m_stmts.push_back(ParseDecl());
+        }
+        catch (RuntimeError const& ex)
+        {
+            Log::Error("Parser error: ", ex.GetMessage());
+            Sync();
+        }
+    }
+    return !m_hasError;
+}
+
+StmtPtr Parser::ParseDecl()
+{
+    if (IsMatch(Type::Var))
+    {
+        m_position++;
+        return ParseVarDecl();
+    }
+
+    return ParseStmt();
+}
+
+StmtPtr Parser::ParseVarDecl()
+{
+    Token const& token = m_scanner.GetToken(m_position);
+    if (token.GetType() != Type::Identifier)
+        throw ParserError(ParserError::Type::DeclIdMiss, token);
+    
+    auto stmtVarDecl = std::make_unique<StmtVarDecl>(token, ExprPtr{});
+    if (m_scanner.IsTokenMatch(Type::Equal, ++m_position))
+    {
+        m_position++;
+        stmtVarDecl->m_expr = ParseExpr();
+    }
+
+    if (!IsMatch(Type::Semicolon))
+        throw ParserError(ParserError::Type::MissSemicolon, m_scanner.GetToken(m_position));
+    
+    m_position++;
+    return stmtVarDecl;
 }
 
 StmtPtr Parser::ParseStmt()
@@ -111,7 +140,7 @@ StmtPtr Parser::ParseStmtExpr()
         return std::make_unique<StmtExpr>(std::move(expr));
     }
 
-    throw ParserError(ParserError::Type::MissSemicolon, m_tokens[m_position]);
+    throw ParserError(ParserError::Type::MissSemicolon, m_scanner.GetToken(m_position));
 }
 
 StmtPtr Parser::ParseStmtPrint()
@@ -123,7 +152,7 @@ StmtPtr Parser::ParseStmtPrint()
         return std::make_unique<StmtPrint>(std::move(expr));
     }
 
-    throw ParserError(ParserError::Type::MissSemicolon, m_tokens[m_position]);
+    throw ParserError(ParserError::Type::MissSemicolon, m_scanner.GetToken(m_position));
 }
 
 
@@ -138,7 +167,7 @@ ExprPtr Parser::ParseExprEquality()
     Type tokens[] = { Type::BangEqual, Type::EqualEqual };
     while (IsMatch<2>(tokens))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         ExprPtr right = ParseExprComparison();
         expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
     }
@@ -151,7 +180,7 @@ ExprPtr Parser::ParseExprComparison()
     Type tokens[] = { Type::Less, Type::LessEqual, Type::Greater, Type::GreaterEqual };
     while (IsMatch<4>(tokens))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         ExprPtr right = ParseExprTerm();
         expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
     }
@@ -164,7 +193,7 @@ ExprPtr Parser::ParseExprTerm()
     Type tokens[] = { Type::Plus, Type::Minus };
     while (IsMatch<2>(tokens))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         ExprPtr right = ParseExprFactor();
         expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
     }
@@ -176,7 +205,7 @@ ExprPtr Parser::ParseExprFactor()
     Type tokens[] = { Type::Star, Type::Slash };
     while (IsMatch<2>(tokens))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         ExprPtr right = ParseExprUnary();
         expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
     }
@@ -188,7 +217,7 @@ ExprPtr Parser::ParseExprUnary()
     Type tokens[] = { Type::Minus };
     if (IsMatch<1>(tokens))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         ExprPtr right = ParseExprUnary();
         return std::make_unique<ExprUnary>(token, std::move(right));
     }
@@ -199,7 +228,7 @@ ExprPtr Parser::ParseExprPrimary()
 {
     if (IsMatch(Type::Number))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         char const* begin = &m_scanner.m_source[token.GetPositios()];
         char* end = const_cast<char*>(begin) + token.GetLength();
         return std::make_unique<ExprLiteral>(std::strtod(begin, &end));
@@ -207,7 +236,7 @@ ExprPtr Parser::ParseExprPrimary()
 
     if (IsMatch(Type::String))
     {
-        Token const& token = m_tokens[m_position++];
+        Token const& token = m_scanner.GetToken(m_position++);
         return std::make_unique<ExprLiteral>(std::string(&m_scanner.m_source[token.GetPositios()], token.GetLength()));
     }
 
@@ -223,6 +252,15 @@ ExprPtr Parser::ParseExprPrimary()
         return std::make_unique<ExprLiteral>(true);
     }
 
+    if (IsMatch(Type::Nil))
+    {
+        m_position++;
+        return std::make_unique<ExprLiteral>(std::nullptr_t{});
+    }
+
+    if (IsMatch(Type::Identifier))
+        return std::make_unique<ExprVar>(m_scanner.GetToken(m_position++));
+
     if (IsMatch(Type::LeftParen))
     {
         m_position++;
@@ -234,12 +272,12 @@ ExprPtr Parser::ParseExprPrimary()
         }
         else
         {
-            throw ParserError(ParserError::Type::PrimMissRightParen, m_tokens[m_position]);
+            throw ParserError(ParserError::Type::PrimMissRightParen, m_scanner.GetToken(m_position));
         }
     }
 
     if (IsAtEnd())
-        throw ParserError(ParserError::Type::OnlyEofToken, m_tokens[m_position]);
+        throw ParserError(ParserError::Type::OnlyEofToken, m_scanner.GetToken(m_position));
 
-    throw ParserError(ParserError::Type::PrimNoMatch, m_tokens[m_position++]);
+    throw ParserError(ParserError::Type::PrimNoMatch, m_scanner.GetToken(m_position++));
 }

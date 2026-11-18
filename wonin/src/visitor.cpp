@@ -9,12 +9,12 @@ std::string ValueError::GetMessage() const
         case Type::OpNegTypMismatch: return "Value operator negation type mismatch";
         case Type::OpNotTypMismatch: return "Value operator not type mismatch";
 
-        case Type::OpEqTypEmpty:     return "Value operator equal type is empty";
-        case Type::OpNeqTypEmpty:    return "Value operator not equal type is empty";
-        case Type::OpLesEmpty:       return "Value operator equal type is empty";
-        case Type::OpLesEqTypEmpty:  return "Value operator not equal type is empty";
-        case Type::OpGrtTypEmpty:    return "Value operator equal type is empty";
-        case Type::OpGrtEqTypEmpty:  return "Value operator not equal type is empty";
+        case Type::OpEqTypEmpty:     return "Value operator equal on empty type";
+        case Type::OpNeqTypEmpty:    return "Value operator not equal on empty type";
+        case Type::OpLesTypNotSup:   return "Value operator less on type not supported";
+        case Type::OpLesEqTypNotSup: return "Value operator less or equal on type not supported";
+        case Type::OpGrtTypNotSup:   return "Value operator greater on type no supported";
+        case Type::OpGrtEqTypNotSup: return "Value operator greater or equal on type not supported";
 
         case Type::OpPluTypMismatch: return "Value operator plus type mismatch";
         case Type::OpMinTypMismatch: return "Value operator minus type mismatch";
@@ -59,22 +59,34 @@ Value Value::operator!=(Value const& rhs) const
 
 Value Value::operator<(Value const& rhs) const
 {
-    return {};
+    if (IsNumber() && rhs.IsNumber())
+        return Value(GetNumber() < rhs.GetNumber());
+    
+    throw ValueError(ValueError::Type::OpLesTypNotSup);
 }
 
 Value Value::operator<=(Value const& rhs) const
 {
-    return {};
+    if (IsNumber() && rhs.IsNumber())
+        return Value(GetNumber() <= rhs.GetNumber());
+    
+    throw ValueError(ValueError::Type::OpLesEqTypNotSup);
 }
 
 Value Value::operator>(Value const& rhs) const
 {
-    return {};
+    if (IsNumber() && rhs.IsNumber())
+        return Value(GetNumber() > rhs.GetNumber());
+    
+    throw ValueError(ValueError::Type::OpGrtTypNotSup);
 }
 
 Value Value::operator>=(Value const& rhs) const
 {
-    return {};
+    if (IsNumber() && rhs.IsNumber())
+        return Value(GetNumber() >= rhs.GetNumber());
+    
+    throw ValueError(ValueError::Type::OpGrtEqTypNotSup);
 }
 
 Value Value::operator+(Value const& rhs) const
@@ -117,6 +129,11 @@ Value Value::operator/(Value const& rhs) const
 bool Value::IsEmpty() const
 {
     return IsTypeOf<std::monostate>();
+}
+
+bool Value::IsNull() const
+{
+    return IsTypeOf<std::nullptr_t>();
 }
 
 bool Value::IsBool() const

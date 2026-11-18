@@ -12,13 +12,14 @@ std::string InterpreterError::GetMessage() const
     {
         case Type::UnkUnaOp: return "Unknown unary operator";
         case Type::UnkBinOp: return "Unknown binary operator";
-        default: return "Unknown interpreter error";
+        case Type::UnkId:    return "Unknown identifier";
+        default:             return "Unknown interpreter error";
     }
 }
 
-void Interpreter::Interpret(std::vector<StmtPtr> const& stmts) const
+void Interpreter::Interpret() const
 {
-    for (auto const& stmt : stmts)
+    for (auto const& stmt : m_parser.GetStatements())
     {
         stmt->Accept(*this);
     }
@@ -59,6 +60,17 @@ Value Interpreter::Visit(ExprBinary const& expr) const
     throw Wonin::InterpreterError(Wonin::InterpreterError::Type::UnkBinOp);
 }
 
+Value Interpreter::Visit(ExprVar const& expr) const
+{
+    // to-do: replace string with string view and handle not defined identifiers!
+    std::string key = std::string(&m_parser.GetScanner().GetSource()[expr.m_token.GetPositios()], expr.m_token.GetLength());
+    Value value = m_environment[key];
+    //if (value.IsEmpty())
+    //    throw InterpreterError(InterpreterError::Type::UnkId);
+    
+    return value;
+}
+
 void Interpreter::Visit(StmtExpr const& stmt) const
 {
     stmt.m_expr->Accept(*this);
@@ -73,4 +85,18 @@ void Interpreter::Visit(StmtPrint const& stmt) const
         Log::Info(value.GetString());
     else if (value.IsBool())
         Log::Info(value.GetBool() ? "true" : "false");
+    else if (value.IsNull())
+        Log::Info("null");
+    else if (value.IsEmpty())
+        Log::Info("void");
+}
+
+void Interpreter::Visit(StmtVarDecl const& stmt) const
+{
+    // to-do: replace string with string view
+    std::string key = std::string(&m_parser.GetScanner().GetSource()[stmt.m_identifier.GetPositios()], stmt.m_identifier.GetLength());
+    if (stmt.m_expr.get())
+        m_environment[key] = stmt.m_expr->Accept(*this);
+    else
+        m_environment[key] = Value(std::nullptr_t{});
 }

@@ -14,19 +14,15 @@ int Wonin::InterpretFromFile(std::string const& path)
 int Wonin::Interpret(std::string const& source)
 {
     Wonin::Scanner scanner(source);
-    std::vector<Wonin::Token> tokens = scanner.ScanTokens();
-
-    if (scanner.HasError())
+    if (!scanner.ScanTokens())
         return -1;
     
-    Wonin::Parser parser(scanner, tokens);
-    std::vector<Wonin::StmtPtr> stmts = parser.Parse();
+    Wonin::Parser parser(scanner);
 
-    if (parser.HasError())
+    if (!parser.Parse())
         return -2;
     
-    Wonin::Interpreter in;
-    in.Interpret(stmts);
+    Wonin::Interpreter(parser).Interpret();
 
     return 0;
 }

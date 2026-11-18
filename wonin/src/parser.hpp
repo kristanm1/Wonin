@@ -18,7 +18,11 @@ namespace Wonin
         {
             PrimNoMatch,
             PrimMissRightParen,
+
             MissSemicolon,
+
+            DeclIdMiss,
+
             OnlyEofToken,
         };
 
@@ -36,26 +40,31 @@ namespace Wonin
     class Parser
     {
     public:
-        Parser(Scanner const& scanner, std::vector<Token> const& tokens);
-        std::vector<StmtPtr> Parse();
+        Parser(Scanner const& scanner) : m_scanner(scanner) {}
 
-        bool HasError() { return m_hasError; }
+        bool Parse();
+
+        std::vector<StmtPtr> const& GetStatements() const { return m_stmts; }
+        Scanner const& GetScanner() const { return m_scanner; }
 
     private:
         bool IsAtEnd()
         {
-            return m_tokens[m_position].GetType() == Token::Type::EoF;
+            return m_scanner.IsTokenMatch(Token::Type::EoF, m_position);
         }
 
         bool IsMatch(Token::Type type)
         {
-            return !IsAtEnd() && m_tokens[m_position].GetType() == type;
+            return !IsAtEnd() && m_scanner.IsTokenMatch(type, m_position);
         }
 
         template<unsigned N>
         bool IsMatch(Token::Type const* types);
 
         void Sync();
+
+        StmtPtr ParseDecl();
+        StmtPtr ParseVarDecl();
 
         StmtPtr ParseStmt();
         StmtPtr ParseStmtExpr();
@@ -69,9 +78,9 @@ namespace Wonin
         ExprPtr ParseExprUnary();
         ExprPtr ParseExprPrimary();
 
-        unsigned m_position = 0;
         Scanner const& m_scanner;
-        std::vector<Token> const& m_tokens;
+        std::vector<Wonin::StmtPtr> m_stmts{};
+        unsigned m_position = 0;
         bool m_hasError;
     };
 

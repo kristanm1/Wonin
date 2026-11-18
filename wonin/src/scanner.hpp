@@ -18,9 +18,13 @@ namespace Wonin
             : m_source(source)
         {};
 
-        std::vector<Token> ScanTokens();
-        void PrintTokens(std::vector<Token> const& tokens);
-        bool HasError() { return m_hasError; }
+        bool ScanTokens();
+        void PrintTokens();
+
+        const Token& GetToken(usize i) const { return m_tokens[i]; };
+        Token::Type GetTokenType(usize i) const {return GetToken(i).GetType(); }
+        bool IsTokenMatch(Token::Type t, usize i) const { return GetTokenType(i) == t; }
+        std::string const& GetSource() const { return m_source; }
 
     private:
         void ScannerError(std::string message);
@@ -51,6 +55,7 @@ namespace Wonin
         Token GetNextToken();
 
         std::string const& m_source;
+        std::vector<Token> m_tokens{};
         usize m_position = 0;
         usize m_line = 1;
         bool m_hasError = false;

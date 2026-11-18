@@ -37,11 +37,11 @@ namespace
     };
 }
 
-void Scanner::PrintTokens(std::vector<Token> const& tokens)
+void Scanner::PrintTokens()
 {
-    for (usize i = 0; i < tokens.size(); i++)
+    for (usize i = 0; i < m_tokens.size(); i++)
     {
-        auto const& token = tokens[i];
+        auto const& token = m_tokens[i];
         usize end = token.GetPositios() + token.GetLength();
         std::stringstream ss;
         for (usize j = token.GetPositios(); j < end; j++)
@@ -166,9 +166,8 @@ Token Scanner::GetNextToken()
 
 }
 
-std::vector<Token> Scanner::ScanTokens()
+bool Scanner::ScanTokens()
 {
-    std::vector<Token> tokens;
     m_position = 0;
     m_line = 1;
     m_hasError = false;
@@ -178,14 +177,14 @@ std::vector<Token> Scanner::ScanTokens()
         Token token = GetNextToken();
         if (token.GetType() != Type::Sentinel)
         {
-            tokens.push_back(token);
+            m_tokens.push_back(token);
         }
 
         m_position += token.GetLength();
         m_line = token.GetLine();
     }
     
-    tokens.emplace_back(m_position, m_line, 0, Type::EoF);
+    m_tokens.emplace_back(m_position, m_line, 0, Type::EoF);
     
-    return tokens;
+    return !m_hasError;
 }

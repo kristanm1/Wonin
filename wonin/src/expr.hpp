@@ -79,6 +79,15 @@ namespace Wonin
         ExprPtr m_right;
     };
 
+    struct ExprVar : public Expr
+    {
+        ExprVar(Token const& token) : m_token(token) {}
+        Value Accept(Visitor const& visitor) const override
+        {
+            return visitor.Visit(*this);
+        }
+        Token const& m_token;
+    };
 }
 
 #endif
