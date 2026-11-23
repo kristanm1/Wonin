@@ -1,28 +1,66 @@
 #include "../include/wonin/wonin.hpp"
-
 #include "log.hpp"
 #include "utils.hpp"
 #include "scanner.hpp"
 #include "parser.hpp"
+#include "environment.hpp"
 #include "interpreter.hpp"
 
-int Wonin::InterpretFromFile(std::string const& path)
+#include <iostream>
+
+using namespace wonin;
+
+namespace
 {
-    return Interpret(Utils::LoadText(path));
+
+    int execute(Environment& environment, std::string const& source)
+    {
+        Scanner scanner(source);
+
+        if (!scanner.scan())
+            return -1;
+        
+        Parser parser(scanner);
+
+        if (!parser.parse())
+            return -2;
+        
+        Interpreter(parser).interpret(environment);
+
+        return 0;
+    }
+
 }
 
-int Wonin::Interpret(std::string const& source)
+int wonin::interpret(std::string const& source)
 {
-    Wonin::Scanner scanner(source);
-    if (!scanner.ScanTokens())
-        return -1;
-    
-    Wonin::Parser parser(scanner);
+    Environment environment{};
+    return execute(environment, source);
+}
 
-    if (!parser.Parse())
-        return -2;
-    
-    Wonin::Interpreter(parser).Interpret();
+int wonin::run(int argc, char *argv[])
+{
+    Environment environment{};
 
-    return 0;
+    if (argc == 1)
+    {
+        for (;;)
+        {
+            std::string line;
+            std::cout << "> ";
+            if (!std::getline(std::cin, line))
+                break;
+            
+            execute(environment, line);
+        }
+        return 0;
+    }
+
+    if (argc == 2)
+    {
+        return execute(environment, utils::loadText(argv[1]));
+    }
+
+    log::info("Usage: wonin [script]");
+    return -1;
 }

@@ -8,80 +8,48 @@
 
 #include <vector>
 
-namespace Wonin
+namespace wonin
 {
-
-    class ParserError : public RuntimeError
-    {
-    public:
-        enum class Type
-        {
-            PrimNoMatch,
-            PrimMissRightParen,
-
-            MissSemicolon,
-
-            DeclIdMiss,
-
-            OnlyEofToken,
-        };
-
-        ParserError(Type type, Token const& token)
-            : m_type(type)
-            , m_token(token)
-        {}
-        
-        std::string GetMessage() const override;
-    private:
-        Token const& m_token;
-        Type m_type;
-    };
 
     class Parser
     {
+        friend class Interpreter;
     public:
         Parser(Scanner const& scanner) : m_scanner(scanner) {}
 
-        bool Parse();
-
-        std::vector<StmtPtr> const& GetStatements() const { return m_stmts; }
-        Scanner const& GetScanner() const { return m_scanner; }
+        bool parse();
 
     private:
-        bool IsAtEnd()
-        {
-            return m_scanner.IsTokenMatch(Token::Type::EoF, m_position);
-        }
-
-        bool IsMatch(Token::Type type)
-        {
-            return !IsAtEnd() && m_scanner.IsTokenMatch(type, m_position);
-        }
+        bool isToken(Token token) const { return m_scanner.m_lexemes[m_position].token() == token; }
+        bool isEnd()              const { return isToken(Token::EoF); }
 
         template<unsigned N>
-        bool IsMatch(Token::Type const* types);
+        bool isToken(Token const* tokens);
 
-        void Sync();
+        void sync();
 
-        StmtPtr ParseDecl();
-        StmtPtr ParseVarDecl();
+        StmtPtr parseDecl();
+        StmtPtr parseVarDecl();
 
-        StmtPtr ParseStmt();
-        StmtPtr ParseStmtExpr();
-        StmtPtr ParseStmtPrint();
+        StmtPtr parseStmt();
+        StmtPtr parseStmtExpr();
+        StmtPtr parseStmtPrint();
+        StmtPtr parseStmtBlock();
 
-        ExprPtr ParseExpr();
-        ExprPtr ParseExprEquality();
-        ExprPtr ParseExprComparison();
-        ExprPtr ParseExprTerm();
-        ExprPtr ParseExprFactor();
-        ExprPtr ParseExprUnary();
-        ExprPtr ParseExprPrimary();
+        ExprPtr parseExpr();
+        ExprPtr parseExprAsgn();
+        ExprPtr parseExprEquality();
+        ExprPtr parseExprComparison();
+        ExprPtr parseExprTerm();
+        ExprPtr parseExprFactor();
+        ExprPtr parseExprUnary();
+        ExprPtr parseExprPrimary();
 
+    private:
         Scanner const& m_scanner;
-        std::vector<Wonin::StmtPtr> m_stmts{};
-        unsigned m_position = 0;
-        bool m_hasError;
+        std::vector<StmtPtr> m_stmts{};
+        usize m_position = 0;
+        bool m_hasError = false;
     };
 
 }

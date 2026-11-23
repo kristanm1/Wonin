@@ -1,7 +1,9 @@
 #include "utils.hpp"
 #include <fstream>
 
-std::string Wonin::Utils::LoadText(std::string const& path)
+using namespace wonin;
+
+std::string utils::loadText(std::string const& path)
 {
     std::fstream fs(path, std::ifstream::in | std::ifstream::binary);
     if (!fs.is_open())

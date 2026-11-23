@@ -1,44 +1,47 @@
 #ifndef _WONIN_LOG_
 #define _WONIN_LOG_
 
+#include "types.hpp"
+
 #include <sstream>
 
-#ifdef WONGO_PLATFORM_WINDOWS
-    #define DBREAK() __debugbreak();
+#ifdef WONIN_PLATFORM_WINDOWS
+    #if NDEBUG
+        #define DBREAK()
+    #else
+        #define DBREAK() __debugbreak();
+    #endif
 #else
     #define DBREAK()
 #endif
 
 #define ASSERT(x) if (!(x)) DBREAK()
 
-namespace Wonin
+namespace wonin::log
 {
-    struct Log
+    void infoImpl(std::string const& s);
+    void errorImpl(std::string const& s);
+
+    template<typename... Args>
+    std::string stringify(Args&&... args)
     {
-        static void InfoImpl(std::string const& s);
-        static void ErrorImpl(std::string const& s);
+        return (std::stringstream{} << ... << std::forward<Args>(args)).str();
+    }
 
-        template<typename... Args>
-        static std::string Stringify(Args&&... args)
-        {
-            std::stringstream ss;
-            (ss << ... << std::forward<Args>(args));
-            return ss.str();
-        }
+    template<typename... Args>
+    void info(Args&&... args)
+    {
+        infoImpl(stringify(std::forward<Args>(args)...));
+    }
 
-        template<typename... Args>
-        static void Info(Args&&... args)
-        {
-            Log::InfoImpl(Stringify(std::forward<Args>(args)...));
-        }
+    template<typename... Args>
+    void error(Args&&... args)
+    {
+        errorImpl(stringify(std::forward<Args>(args)...));
+        DBREAK();
+    }
 
-        template<typename... Args>
-        static void Error(Args&&... args)
-        {
-            Log::ErrorImpl(Stringify(std::forward<Args>(args)...));
-            DBREAK();
-        }
-    };
+    void scannerError(std::string message, usize lineNumber);
 
 }
 

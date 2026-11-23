@@ -6,13 +6,13 @@
 #include <memory>
 #include <variant>
 
-namespace Wonin
+namespace wonin
 {
 
     struct Expr
     {
-        virtual ~Expr() = default;
-        virtual Value Accept(Visitor const& visitor) const = 0;
+        virtual       ~Expr() = default;
+        virtual Value accept(Visitor const& visitor) const = 0;
     };
 
     using ExprPtr = std::unique_ptr<Expr>;
@@ -20,73 +20,70 @@ namespace Wonin
     struct ExprLiteral : public Expr
     {
         template<typename T>
-        ExprLiteral(T&& data)
-            : m_data(std::forward<T>(data))
-        {}
+        ExprLiteral(T&& data) : m_data(std::forward<T>(data)) {}
 
-        Value Accept(Visitor const& visitor) const override
-        {
-            return visitor.Visit(*this);
-        }
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
         Value m_data;
     };
 
     struct ExprGrouping : public Expr
     {
-        ExprGrouping(ExprPtr&& expr)
-            : m_expr(std::move(expr))
-        {}
+        ExprGrouping(ExprPtr&& expr) : m_expr(std::move(expr)) {}
 
-        Value Accept(Visitor const& visitor) const override
-        {
-            return visitor.Visit(*this);
-        }
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
+        
         ExprPtr m_expr;
     };
 
     struct ExprUnary : public Expr
     {
-        ExprUnary(Token const& token, ExprPtr&& expr)
-            : m_token(token)
+        ExprUnary(Lexeme const& lexeme, ExprPtr&& expr)
+            : m_lexeme(lexeme)
             , m_expr(std::move(expr))
         {}
 
-        Value Accept(Visitor const& visitor) const override
-        {
-            return visitor.Visit(*this);
-        }
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Token const& m_token;
+        Lexeme const& m_lexeme;
         ExprPtr m_expr;
     };
 
     struct ExprBinary : public Expr
     {
-        ExprBinary(ExprPtr&& left, Token const& token, ExprPtr&& right)
-            : m_token(token)
+        ExprBinary(ExprPtr&& left, Lexeme const& lexeme, ExprPtr&& right)
+            : m_lexeme(lexeme)
             , m_left(std::move(left))
             , m_right(std::move(right))
         {}
 
-        Value Accept(Visitor const& visitor) const override
-        {
-            return visitor.Visit(*this);
-        }
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Token const& m_token;
+        Lexeme const& m_lexeme;
         ExprPtr m_left;
         ExprPtr m_right;
     };
 
     struct ExprVar : public Expr
     {
-        ExprVar(Token const& token) : m_token(token) {}
-        Value Accept(Visitor const& visitor) const override
-        {
-            return visitor.Visit(*this);
-        }
-        Token const& m_token;
+        ExprVar(Lexeme const& lexeme) : m_lexeme(lexeme) {}
+
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
+
+        Lexeme const& m_lexeme;
+    };
+
+    struct ExprAsgn : public Expr
+    {
+        ExprAsgn(Lexeme lexeme, ExprPtr expr)
+            : m_lexeme(lexeme)
+            , m_expr(std::move(expr))
+        {}
+
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
+
+        Lexeme m_lexeme;
+        ExprPtr m_expr;
     };
 }
 

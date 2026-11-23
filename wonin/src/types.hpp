@@ -4,16 +4,26 @@
 #include <string>
 #include <cstdint>
 
-namespace Wonin
+namespace wonin
 {
+
+    using chr   = char;
     using usize = std::uint32_t;
+
+    using str     = std::basic_string<chr, std::char_traits<chr>, std::allocator<chr>>;
+    using strview = std::basic_string_view<chr>;
+    using cstr    = chr const*;
 
     class RuntimeError
     {
     public:
-        ~RuntimeError() = default;
-        virtual std::string GetMessage() const = 0;
+        RuntimeError(str message) : m_message(message) {}
+
+        str const& what() const { return m_message; }
+    private:
+        str m_message;
     };
+
 }
 
 #endif

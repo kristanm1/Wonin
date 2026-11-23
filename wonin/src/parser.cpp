@@ -2,282 +2,306 @@
 #include "log.hpp"
 
 #include <sstream>
+#include <vector>
 
-using namespace Wonin;
-using Type = Token::Type;
+using namespace wonin;
 
-std::string ParserError::GetMessage() const
+bool Parser::parse()
 {
-    using Type = ParserError::Type;
-
-    char const* cstr;
-    switch (m_type)
-    {
-        case Type::PrimNoMatch:
-            cstr = "Primary expression does not match";
-            break;
-        case Type::PrimMissRightParen:
-            cstr = "Primary expression missing closing parantesis";
-            break;
-        case Type::MissSemicolon:
-            cstr = "Expression is missing semicolon";
-            break;
-        case Type::OnlyEofToken:
-            cstr = "Nothing to parse";
-            break;
-        case Type::DeclIdMiss:
-            cstr = "Declaration is missing identifier";
-            break;
-        default :
-            cstr = "Unknown error";
-            break;
-    }
-    std::stringstream ss{};
-    ss << cstr << ": " << "at line " << m_token.GetLine() << " found token type " << m_token.ToString();
-    return ss.str();
-}
-
-template<unsigned N>
-bool Parser::IsMatch(Type const* types)
-{
-    for (unsigned i = 0; i < N; i++)
-    {
-        if (IsMatch(types[i]))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-void Parser::Sync()
-{
-    Type tokens[] = {
-        Type::Semicolon,
-        Type::Class,
-        Type::Fun,
-        Type::Var,
-        Type::For,
-        Type::If,
-        Type::While,
-        Type::Print,
-        Type::Return,
-    };
-    for (; !IsMatch<9>(tokens); m_position++) {
-        if (IsAtEnd())
-            return;
-    }
-}
-
-bool Parser::Parse()
-{
+    m_stmts.clear();
     m_position = 0;
     m_hasError = false;
-    while (!IsAtEnd())
+    while (!isEnd())
     {
         try
         {
-            m_stmts.push_back(ParseDecl());
+            m_stmts.push_back(parseDecl());
         }
-        catch (RuntimeError const& ex)
+        catch (RuntimeError const& err)
         {
-            Log::Error("Parser error: ", ex.GetMessage());
-            Sync();
+            m_hasError = true;
+            log::error("Parser error: ", err.what());
+
+            sync();
         }
     }
     return !m_hasError;
 }
 
-StmtPtr Parser::ParseDecl()
+template<unsigned N>
+bool Parser::isToken(Token const* tokens)
 {
-    if (IsMatch(Type::Var))
-    {
-        m_position++;
-        return ParseVarDecl();
-    }
+    for (unsigned i = 0; i < N; i++)
+        if (isToken(tokens[i]))
+            return true;
 
-    return ParseStmt();
+    return false;
 }
 
-StmtPtr Parser::ParseVarDecl()
+void Parser::sync()
 {
-    Token const& token = m_scanner.GetToken(m_position);
-    if (token.GetType() != Type::Identifier)
-        throw ParserError(ParserError::Type::DeclIdMiss, token);
-    
-    auto stmtVarDecl = std::make_unique<StmtVarDecl>(token, ExprPtr{});
-    if (m_scanner.IsTokenMatch(Type::Equal, ++m_position))
+    Token tokens[] = {
+        Token::Semicolon, Token::Class, Token::Fun, Token::Var, Token::For,
+        Token::If, Token::While, Token::Print, Token::Return,
+    };
+
+    while (!isEnd())
+    {
+        if (!isToken<9>(tokens))
+            return;
+        
+        m_position++;
+    }
+}
+
+StmtPtr Parser::parseDecl()
+{
+    if (isToken(Token::Var))
     {
         m_position++;
-        stmtVarDecl->m_expr = ParseExpr();
+        return parseVarDecl();
     }
 
-    if (!IsMatch(Type::Semicolon))
-        throw ParserError(ParserError::Type::MissSemicolon, m_scanner.GetToken(m_position));
+    return parseStmt();
+}
+
+StmtPtr Parser::parseVarDecl()
+{
+    Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+    if (lexeme.token() != Token::Identifier)
+        throw RuntimeError(log::stringify(
+            "Variable declaration is missing identifier at line ",
+            m_scanner.lineNumber(lexeme)
+        ));
+    
+    auto stmtVarDecl = std::make_unique<StmtVarDecl>(lexeme, ExprPtr{});
+    if (m_scanner.m_lexemes[m_position].token() == Token::Equal)
+    {
+        m_position++;
+        stmtVarDecl->m_expr = parseExpr();
+    }
+
+    if (!isToken(Token::Semicolon))
+        throw RuntimeError(log::stringify(
+            "Variable declaration statement is missing ; at line",
+            m_scanner.lineNumber(m_scanner.m_lexemes[m_position])
+        ));
     
     m_position++;
     return stmtVarDecl;
 }
 
-StmtPtr Parser::ParseStmt()
+StmtPtr Parser::parseStmt()
 {
-    if (IsMatch(Type::Print))
+    if (isToken(Token::Print))
     {
         m_position++;
-        return ParseStmtPrint();
+        return parseStmtPrint();
     }
 
-    return ParseStmtExpr();
+    if (isToken(Token::LeftBrace))
+    {
+        m_position++;
+        return parseStmtBlock();
+    }
+
+    return parseStmtExpr();
 }
 
-StmtPtr Parser::ParseStmtExpr()
+StmtPtr Parser::parseStmtExpr()
 {
-    ExprPtr expr = ParseExpr();
-    if (IsMatch(Type::Semicolon))
+    ExprPtr expr = parseExpr();
+    if (isToken(Token::Semicolon))
     {
         m_position++;
         return std::make_unique<StmtExpr>(std::move(expr));
     }
 
-    throw ParserError(ParserError::Type::MissSemicolon, m_scanner.GetToken(m_position));
+    throw RuntimeError(log::stringify(
+        "Expression statement is missing ; at line ",
+        m_scanner.lineNumber(m_scanner.m_lexemes[m_position])
+    ));
 }
 
-StmtPtr Parser::ParseStmtPrint()
+StmtPtr Parser::parseStmtPrint()
 {
-    ExprPtr expr = ParseExpr();
-    if (IsMatch(Type::Semicolon))
+    ExprPtr expr = parseExpr();
+    if (isToken(Token::Semicolon))
     {
         m_position++;
         return std::make_unique<StmtPrint>(std::move(expr));
     }
 
-    throw ParserError(ParserError::Type::MissSemicolon, m_scanner.GetToken(m_position));
+    throw RuntimeError(log::stringify(
+        "Print statement is missing ; at line ",
+        m_scanner.lineNumber(m_scanner.m_lexemes[m_position])
+    ));
 }
 
-
-ExprPtr Parser::ParseExpr()
+StmtPtr Parser::parseStmtBlock()
 {
-    return ParseExprEquality();
-}
-
-ExprPtr Parser::ParseExprEquality()
-{
-    ExprPtr expr = ParseExprComparison();
-    Type tokens[] = { Type::BangEqual, Type::EqualEqual };
-    while (IsMatch<2>(tokens))
+    std::vector<StmtPtr> stmts{};
+    while (!(isEnd() || isToken(Token::RightBrace)))
     {
-        Token const& token = m_scanner.GetToken(m_position++);
-        ExprPtr right = ParseExprComparison();
-        expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
+        stmts.push_back(parseDecl());
+    }
+
+    if (isEnd())
+        throw RuntimeError("Expected } at the end of block at last line");
+    
+    if (!isToken(Token::RightBrace))
+        throw RuntimeError(log::stringify(
+            "Expected } at the end of block at line ",
+            m_scanner.lineNumber(m_scanner.m_lexemes[m_position])
+        ));
+
+    m_position++;
+    return make_unique<StmtBlock>(std::move(stmts));
+}
+
+ExprPtr Parser::parseExpr()
+{
+    return parseExprAsgn();
+}
+
+ExprPtr Parser::parseExprAsgn()
+{
+    ExprPtr expr = parseExprEquality();
+
+    if (isToken(Token::Equal))
+    {
+        Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+        ExprPtr value = parseExprAsgn();
+        ExprVar *exprVar = dynamic_cast<ExprVar*>(expr.get());
+        if (exprVar != nullptr)
+        {
+            return std::make_unique<ExprAsgn>(exprVar->m_lexeme, std::move(value));
+        }
+
+        throw RuntimeError(log::stringify(
+            "Invalid assignment expression, left hand side does not evaluate into identifier at line ",
+            m_scanner.lineNumber(lexeme)
+        ));
+    }
+
+    return expr;
+}
+
+ExprPtr Parser::parseExprEquality()
+{
+    ExprPtr expr = parseExprComparison();
+    Token tokens[] = { Token::BangEqual, Token::EqualEqual };
+    while (isToken<2>(tokens))
+    {
+        Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+        ExprPtr right = parseExprComparison();
+        expr = std::make_unique<ExprBinary>(std::move(expr), lexeme, std::move(right));
     }
     return std::move(expr);
 }
 
-ExprPtr Parser::ParseExprComparison()
+ExprPtr Parser::parseExprComparison()
 {
-    ExprPtr expr = ParseExprTerm();
-    Type tokens[] = { Type::Less, Type::LessEqual, Type::Greater, Type::GreaterEqual };
-    while (IsMatch<4>(tokens))
+    ExprPtr expr = parseExprTerm();
+    Token tokens[] = { Token::Less, Token::LessEqual, Token::Greater, Token::GreaterEqual };
+    while (isToken<4>(tokens))
     {
-        Token const& token = m_scanner.GetToken(m_position++);
-        ExprPtr right = ParseExprTerm();
-        expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
+        Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+        ExprPtr right = parseExprTerm();
+        expr = std::make_unique<ExprBinary>(std::move(expr), lexeme, std::move(right));
     }
     return std::move(expr);
 }
 
-ExprPtr Parser::ParseExprTerm()
+ExprPtr Parser::parseExprTerm()
 {
-    ExprPtr expr = ParseExprFactor();
-    Type tokens[] = { Type::Plus, Type::Minus };
-    while (IsMatch<2>(tokens))
+    ExprPtr expr = parseExprFactor();
+    Token tokens[] = { Token::Plus, Token::Minus };
+    while (isToken<2>(tokens))
     {
-        Token const& token = m_scanner.GetToken(m_position++);
-        ExprPtr right = ParseExprFactor();
-        expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
-    }
-    return std::move(expr);
-}
-ExprPtr Parser::ParseExprFactor()
-{
-    ExprPtr expr = ParseExprUnary();
-    Type tokens[] = { Type::Star, Type::Slash };
-    while (IsMatch<2>(tokens))
-    {
-        Token const& token = m_scanner.GetToken(m_position++);
-        ExprPtr right = ParseExprUnary();
-        expr = std::make_unique<ExprBinary>(std::move(expr), token, std::move(right));
+        Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+        ExprPtr right = parseExprFactor();
+        expr = std::make_unique<ExprBinary>(std::move(expr), lexeme, std::move(right));
     }
     return std::move(expr);
 }
 
-ExprPtr Parser::ParseExprUnary()
+ExprPtr Parser::parseExprFactor()
 {
-    Type tokens[] = { Type::Minus };
-    if (IsMatch<1>(tokens))
+    ExprPtr expr = parseExprUnary();
+    Token tokens[] = { Token::Star, Token::Slash };
+    while (isToken<2>(tokens))
     {
-        Token const& token = m_scanner.GetToken(m_position++);
-        ExprPtr right = ParseExprUnary();
-        return std::make_unique<ExprUnary>(token, std::move(right));
+        Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+        ExprPtr right = parseExprUnary();
+        expr = std::make_unique<ExprBinary>(std::move(expr), lexeme, std::move(right));
     }
-    return ParseExprPrimary();
+    return std::move(expr);
 }
 
-ExprPtr Parser::ParseExprPrimary()
+ExprPtr Parser::parseExprUnary()
 {
-    if (IsMatch(Type::Number))
+    if (isToken(Token::Minus))
     {
-        Token const& token = m_scanner.GetToken(m_position++);
-        char const* begin = &m_scanner.m_source[token.GetPositios()];
-        char* end = const_cast<char*>(begin) + token.GetLength();
-        return std::make_unique<ExprLiteral>(std::strtod(begin, &end));
+        Lexeme const& lexeme = m_scanner.m_lexemes[m_position++];
+        ExprPtr right = parseExprUnary();
+        return std::make_unique<ExprUnary>(lexeme, std::move(right));
     }
+    return parseExprPrimary();
+}
 
-    if (IsMatch(Type::String))
-    {
-        Token const& token = m_scanner.GetToken(m_position++);
-        return std::make_unique<ExprLiteral>(std::string(&m_scanner.m_source[token.GetPositios()], token.GetLength()));
-    }
+ExprPtr Parser::parseExprPrimary()
+{
+    if (isToken(Token::Number))
+        return std::make_unique<ExprLiteral>(m_scanner.lexemeNumber(m_scanner.m_lexemes[m_position++]));
 
-    if (IsMatch(Type::False))
+    if (isToken(Token::String))
+        return std::make_unique<ExprLiteral>(m_scanner.lexemeString(m_scanner.m_lexemes[m_position++]));
+
+    if (isToken(Token::False))
     {
         m_position++;
         return std::make_unique<ExprLiteral>(false);
     }
 
-    if (IsMatch(Type::True))
+    if (isToken(Token::True))
     {
         m_position++;
         return std::make_unique<ExprLiteral>(true);
     }
 
-    if (IsMatch(Type::Nil))
+    if (isToken(Token::Nil))
     {
         m_position++;
         return std::make_unique<ExprLiteral>(std::nullptr_t{});
     }
 
-    if (IsMatch(Type::Identifier))
-        return std::make_unique<ExprVar>(m_scanner.GetToken(m_position++));
+    if (isToken(Token::Identifier))
+        return std::make_unique<ExprVar>(m_scanner.m_lexemes[m_position++]);
 
-    if (IsMatch(Type::LeftParen))
+    if (isToken(Token::LeftParen))
     {
         m_position++;
-        ExprPtr expr = ParseExpr();
-        if (IsMatch(Type::RightParen))
+        ExprPtr expr = parseExpr();
+        if (isToken(Token::RightParen))
         {
             m_position++;
             return std::move(expr);
         }
         else
         {
-            throw ParserError(ParserError::Type::PrimMissRightParen, m_scanner.GetToken(m_position));
+            throw RuntimeError(log::stringify(
+                "Expression is missing ) at line ",
+                m_scanner.lineNumber(m_scanner.m_lexemes[m_position])
+            ));
         }
     }
 
-    if (IsAtEnd())
-        throw ParserError(ParserError::Type::OnlyEofToken, m_scanner.GetToken(m_position));
+    if (isEnd())
+        throw RuntimeError("Nothing to parse");
 
-    throw ParserError(ParserError::Type::PrimNoMatch, m_scanner.GetToken(m_position++));
+    throw RuntimeError(log::stringify(
+        "Invalid primary expression at line ",
+        m_scanner.lineNumber(m_scanner.m_lexemes[m_position++])
+    ));
 }

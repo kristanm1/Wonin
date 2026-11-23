@@ -3,47 +3,39 @@
 
 #include "visitor.hpp"
 #include "parser.hpp"
+#include "environment.hpp"
 
-namespace Wonin
+#include <vector>
+
+namespace wonin
 {
 
     struct Parser;
-
-        class InterpreterError : RuntimeError
-    {
-    public:
-        enum class Type
-        {
-            UnkUnaOp,
-            UnkBinOp,
-            UnkId,
-        };
-
-        InterpreterError(Type type) : m_type(type) {}
-        std::string GetMessage() const;
-    private:
-        Type m_type;
-    };
 
     class Interpreter : public Visitor
     {
     public:
         Interpreter(Parser const& parser) : m_parser(parser) {}
-        void Interpret() const;
+
+        void interpret(Environment& environment) const;
 
     private:
-        Value Visit(ExprLiteral const& expr) const override;
-        Value Visit(ExprGrouping const& expr) const override;
-        Value Visit(ExprUnary const& expr) const override;
-        Value Visit(ExprBinary const& expr) const override;
-        Value Visit(ExprVar const& expr) const override;
+        Value visit(ExprLiteral const& expr)  const override;
+        Value visit(ExprGrouping const& expr) const override;
+        Value visit(ExprVar const& expr)      const override;
+        Value visit(ExprUnary const& expr)    const override;
+        Value visit(ExprBinary const& expr)   const override;
+        Value visit(ExprAsgn const& expr)     const override;
 
-        void Visit(StmtExpr const& stmt) const override;
-        void Visit(StmtPrint const& stmt) const override;
-        void Visit(StmtVarDecl const& stmt) const override;
+        void visit(StmtExpr const& stmt)    const override;
+        void visit(StmtPrint const& stmt)   const override;
+        void visit(StmtVarDecl const& stmt) const override;
+        void visit(StmtBlock const& stmt)   const override;
+
+        void executeBlock(std::vector<StmtPtr> const& stmts, Environment& environment) const;
 
         Parser const& m_parser;
-        mutable std::unordered_map<std::string, Value> m_environment{};
+        mutable Environment* m_environment = nullptr;
     };
 
 }

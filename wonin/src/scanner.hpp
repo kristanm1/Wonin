@@ -3,62 +3,54 @@
 
 #include "types.hpp"
 #include "utils.hpp"
-#include "token.hpp"
+#include "lexeme.hpp"
 
 #include <vector>
+#include <string>
 
-namespace Wonin
+namespace wonin
 {
 
     class Scanner
     {
         friend class Parser;
+        friend class Interpreter;
+
     public:
-        Scanner(std::string const& source)
-            : m_source(source)
-        {};
+        Scanner(std::string const& source) : m_source(source) {};
 
-        bool ScanTokens();
-        void PrintTokens();
-
-        const Token& GetToken(usize i) const { return m_tokens[i]; };
-        Token::Type GetTokenType(usize i) const {return GetToken(i).GetType(); }
-        bool IsTokenMatch(Token::Type t, usize i) const { return GetTokenType(i) == t; }
-        std::string const& GetSource() const { return m_source; }
+        bool scan();
+        void print();
 
     private:
-        void ScannerError(std::string message);
-        void ScannerError(char character);
+        bool isEnd(usize offset)          const { return m_position + offset >= m_source.size(); }
+        bool isMatch(chr c, usize offset) const { return c == m_source[m_position + offset]; }
+        bool isDigit(usize offset)        const { return utils::isDigit(m_source[m_position + offset]); }
+        bool isAlphaNumeric(usize offset) const { return utils::isAlphaNumeric(m_source[m_position + offset]); }
 
-        bool IsAtEnd(usize offset)
-        {
-            return m_position + offset >= m_source.size();
-        }
+        usize addLexeme(usize position, usize length, Token token);
+        usize matchLineComment();
+        usize matchString();
+        usize matchNumber();
+        usize matchIdentifier();
+        usize matchToken();
 
-        bool IsMatchAt(char c, usize offset)
-        {
-            return !IsAtEnd(offset) && c == m_source[m_position + offset];
-        }
+        strview lexemeView(Lexeme const& lexeme)   const;
+        str     lexemeString(Lexeme const& lexeme) const;
+        double  lexemeNumber(Lexeme const& lexeme) const;
+        usize   lineNumber(usize position)         const;
+        usize   lineNumber(Lexeme const& lexeme)   const { return lineNumber(lexeme.position()); }
 
-        bool IsDigitAt(usize offset)
-        {
-            return Utils::IsDigit(m_source[m_position + offset]);
-        }
+        void printLexeme(usize position) const;
 
-        void AddToken(usize length, Token::Type type, std::vector<Token> tokens);
-
-        Token MatchLineComment();
-        Token MatchString();
-        Token MatchDigit();
-        Token MatchIdentifier();
-        Token MatchKeyword();
-        Token GetNextToken();
-
-        std::string const& m_source;
-        std::vector<Token> m_tokens{};
-        usize m_position = 0;
-        usize m_line = 1;
-        bool m_hasError = false;
+    private:
+        static utils::unordered_map<Token> s_keywords;
+        
+    private:
+        std::string const&  m_source;
+        std::vector<Lexeme> m_lexemes{};
+        usize               m_position = 0;
+        bool                m_hasError = false;
     };
 
 }

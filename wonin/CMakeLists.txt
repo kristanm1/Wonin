@@ -6,10 +6,11 @@ add_library(wonin
     STATIC
         src/log.cpp
         src/utils.cpp
-        src/token.cpp
+        src/lexeme.cpp
         src/scanner.cpp
         src/parser.cpp
         src/visitor.cpp
+        src/environment.cpp
         src/interpreter.cpp
         src/wonin.cpp
 )

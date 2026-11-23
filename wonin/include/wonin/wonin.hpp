@@ -3,10 +3,13 @@
 
 #include <string>
 
-namespace Wonin
+namespace wonin
 {
-    int InterpretFromFile(std::string const& path);
-    int Interpret(std::string const& source);
+
+    int run(int argc, char *argv[]);
+    
+    int interpret(std::string const& source);
+
 }
 
 #endif

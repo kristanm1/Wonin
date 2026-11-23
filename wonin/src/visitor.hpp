@@ -8,63 +8,36 @@
 #include <variant>
 #include <unordered_map>
 
-namespace Wonin
+namespace wonin
 {
 
     struct ExprLiteral;
     struct ExprGrouping;
+    struct ExprVar;
     struct ExprUnary;
     struct ExprBinary;
-    struct ExprVar;
+    struct ExprAsgn;
 
     struct StmtExpr;
     struct StmtPrint;
     struct StmtVarDecl;
-
-    class ValueError : public RuntimeError
-    {
-    public:
-        enum class Type
-        {
-            OpNegTypMismatch,
-            OpNotTypMismatch,
-
-            OpEqTypEmpty,
-            OpNeqTypEmpty,
-
-            OpLesTypNotSup,
-            OpLesEqTypNotSup,
-            OpGrtTypNotSup,
-            OpGrtEqTypNotSup,
-
-            OpPluTypMismatch,
-            OpMinTypMismatch,
-            OpMulTypMismatch,
-            OpDivTypMismatch,
-            OpDivByZero,
-        };
-
-        ValueError(Type type) : m_type(type) {}
-        std::string GetMessage() const override;
-    private:
-        Type m_type;
-    };
+    struct StmtBlock;
 
     class Value
     {
     public:
         Value() : m_data(std::monostate{}) {}
 
-        template<typename T, EnableIfType<
+        template<typename T, typename = EnableIfType<
             !IsSame<
                 RemoveCVRefType<T>,
                 Value
-            >::Value>* = nullptr
+            >::Value>
         >
         Value(T&& data) : m_data(std::forward<T>(data)) {}
 
-        Value(Value const& other) : m_data(other.m_data) {}
-        Value(Value&& other) : m_data(std::move(other.m_data)) {}
+        Value(Value const& other) : m_data(other.m_data)            {}
+        Value(Value&& other)      : m_data(std::move(other.m_data)) {}
 
         Value& operator=(Value const& other)
         {
@@ -76,6 +49,7 @@ namespace Wonin
         {
             if (this == &other)
                 return *this;
+            
             m_data = std::move(other.m_data);
             return *this;
         }
@@ -85,9 +59,9 @@ namespace Wonin
 
         Value operator==(Value const& rhs) const;
         Value operator!=(Value const& rhs) const;
-        Value operator<(Value const& rhs) const;
+        Value operator<(Value const& rhs)  const;
         Value operator<=(Value const& rhs) const;
-        Value operator>(Value const& rhs) const;
+        Value operator>(Value const& rhs)  const;
         Value operator>=(Value const& rhs) const;
 
         Value operator+(Value const& rhs) const;
@@ -95,39 +69,41 @@ namespace Wonin
         Value operator*(Value const& rhs) const;
         Value operator/(Value const& rhs) const;
 
-        bool IsEmpty() const;
-        bool IsNull() const;
-        bool IsBool() const;
-        bool IsNumber() const;
-        bool IsString() const;
+        bool isEmpty()  const { return isTypeOf<std::monostate>(); }
+        bool isNull()   const { return isTypeOf<std::nullptr_t>(); }
+        bool isBool()   const { return isTypeOf<bool>(); }
+        bool isNumber() const { return isTypeOf<double>(); }
+        bool isString() const { return isTypeOf<str>(); }
 
-        bool GetBool() const;
-        double GetNumber() const;
-        std::string const& GetString() const;
+        bool       getBool()   const { return getType<bool>(); }
+        double     getNumber() const { return getType<double>(); }
+        str const& getString() const { return getType<str>(); }
 
     private:
         template<typename T>
-        bool IsTypeOf() const { return std::holds_alternative<T>(m_data); }
+        bool isTypeOf() const { return std::holds_alternative<T>(m_data); }
 
         template<typename T>
-        T const& GetType() const { return std::get<T>(m_data); }
+        T const& getType() const { return std::get<T>(m_data); }
         
-        std::variant<std::monostate, std::nullptr_t, bool, double, std::string> m_data;
+        std::variant<std::monostate, std::nullptr_t, bool, double, str> m_data;
     };
 
     struct Visitor
     {
         ~Visitor() = default;
 
-        virtual Value Visit(ExprLiteral const& num) const = 0;
-        virtual Value Visit(ExprGrouping const& gro) const = 0;
-        virtual Value Visit(ExprUnary const& una) const = 0;
-        virtual Value Visit(ExprBinary const& bin) const = 0;
-        virtual Value Visit(ExprVar const& var) const = 0;
+        virtual Value visit(ExprLiteral const& num)  const = 0;
+        virtual Value visit(ExprGrouping const& gro) const = 0;
+        virtual Value visit(ExprVar const& var)      const = 0;
+        virtual Value visit(ExprUnary const& una)    const = 0;
+        virtual Value visit(ExprBinary const& bin)   const = 0;
+        virtual Value visit(ExprAsgn const& var)     const = 0;
 
-        virtual void Visit(StmtExpr const& exp) const = 0;
-        virtual void Visit(StmtPrint const& exp) const = 0;
-        virtual void Visit(StmtVarDecl const& exp) const = 0;
+        virtual void visit(StmtExpr const& exp)    const = 0;
+        virtual void visit(StmtPrint const& exp)   const = 0;
+        virtual void visit(StmtVarDecl const& exp) const = 0;
+        virtual void visit(StmtBlock const& exp)   const = 0;
     };
 
 }

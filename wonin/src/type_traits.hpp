@@ -1,7 +1,7 @@
 #ifndef _WONIN_TYPE_TRAITS_
 #define _WONIN_TYPE_TRAITS_
 
-namespace Wonin
+namespace wonin
 {
     //RemoveReference
     template<typename T>

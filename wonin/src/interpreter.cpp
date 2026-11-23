@@ -4,99 +4,166 @@
 #include "expr.hpp"
 #include "stmt.hpp"
 
-using namespace Wonin;
+using namespace wonin;
 
-std::string InterpreterError::GetMessage() const
+void Interpreter::interpret(Environment& environment) const
 {
-    switch (m_type)
+    m_environment = &environment;
+
+    for (auto const& stmt : m_parser.m_stmts)
     {
-        case Type::UnkUnaOp: return "Unknown unary operator";
-        case Type::UnkBinOp: return "Unknown binary operator";
-        case Type::UnkId:    return "Unknown identifier";
-        default:             return "Unknown interpreter error";
+        try
+        {
+            stmt->accept(*this);
+        }
+        catch (RuntimeError const& err)
+        {
+            log::error("Interpreter error: ", err.what());
+            return;
+        }
     }
 }
 
-void Interpreter::Interpret() const
-{
-    for (auto const& stmt : m_parser.GetStatements())
-    {
-        stmt->Accept(*this);
-    }
-}
-
-Value Interpreter::Visit(ExprLiteral const& expr) const
+Value Interpreter::visit(ExprLiteral const& expr) const
 {
     return expr.m_data;
 }
 
-Value Interpreter::Visit(ExprGrouping const& expr) const
+Value Interpreter::visit(ExprGrouping const& expr) const
 {
-    return expr.m_expr->Accept(*this);
+    return expr.m_expr->accept(*this);
 }
 
-Value Interpreter::Visit(ExprUnary const& expr) const
+Value Interpreter::visit(ExprVar const& expr) const
 {
-    Value value = expr.m_expr->Accept(*this);
-    if (expr.m_token.GetType() == Token::Type::Minus)
+    auto var = m_parser.m_scanner.lexemeView((expr.m_lexeme));
+    try
+    {
+        return (*m_environment)[var];
+    }
+    catch(RuntimeError const& err)
+    {
+        throw RuntimeError(log::stringify(
+            err.what(), " at line ",
+            m_parser.m_scanner.lineNumber(expr.m_lexeme)
+        ));
+    }
+}
+
+Value Interpreter::visit(ExprUnary const& expr) const
+{
+    Value value = expr.m_expr->accept(*this);
+    if (expr.m_lexeme.token() == Token::Minus)
         return -value;
+
     else
-        throw InterpreterError(InterpreterError::Type::UnkUnaOp);
+        throw RuntimeError(log::stringify(
+            "Invalid unary operator ", expr.m_lexeme.cstrToken(), " at line ",
+            m_parser.m_scanner.lineNumber(expr.m_lexeme)
+        ));
 }
 
-Value Interpreter::Visit(ExprBinary const& expr) const
+Value Interpreter::visit(ExprBinary const& expr) const
 {
-    Value left = expr.m_left->Accept(*this);
-    Value right = expr.m_right->Accept(*this);
-    if (expr.m_token.GetType() == Token::Type::Plus)
+    Value left = expr.m_left->accept(*this);
+    Value right = expr.m_right->accept(*this);
+    if (expr.m_lexeme.token() == Token::Plus)
         return left + right;
-    else if (expr.m_token.GetType() == Token::Type::Minus)
+
+    else if (expr.m_lexeme.token() == Token::Minus)
         return left - right;
-    else if (expr.m_token.GetType() == Token::Type::Star)
+
+    else if (expr.m_lexeme.token() == Token::Star)
         return left * right;
-    else if (expr.m_token.GetType() == Token::Type::Slash)
+
+    else if (expr.m_lexeme.token() == Token::Slash)
         return left / right;
     
-    throw Wonin::InterpreterError(Wonin::InterpreterError::Type::UnkBinOp);
+    throw RuntimeError(log::stringify(
+        "Invalid binary operator ", expr.m_lexeme.cstrToken(), " at line ",
+            m_parser.m_scanner.lineNumber(expr.m_lexeme)
+    ));
 }
 
-Value Interpreter::Visit(ExprVar const& expr) const
+Value Interpreter::visit(ExprAsgn const& expr) const
 {
-    // to-do: replace string with string view and handle not defined identifiers!
-    std::string key = std::string(&m_parser.GetScanner().GetSource()[expr.m_token.GetPositios()], expr.m_token.GetLength());
-    Value value = m_environment[key];
-    //if (value.IsEmpty())
-    //    throw InterpreterError(InterpreterError::Type::UnkId);
-    
-    return value;
+    try
+    {
+        auto var = m_parser.m_scanner.lexemeView(expr.m_lexeme);
+        m_environment->assign(var, expr.m_expr->accept(*this));
+        return (*m_environment)[var];
+    }
+    catch (RuntimeError const& err)
+    {
+        throw RuntimeError(log::stringify(
+            err.what(), " at line ",
+            m_parser.m_scanner.lineNumber(expr.m_lexeme)
+        ));
+    }
 }
 
-void Interpreter::Visit(StmtExpr const& stmt) const
+void Interpreter::visit(StmtExpr const& stmt) const
 {
-    stmt.m_expr->Accept(*this);
+    stmt.m_expr->accept(*this);
 }
 
-void Interpreter::Visit(StmtPrint const& stmt) const
+void Interpreter::visit(StmtPrint const& stmt) const
 {
-    Value value = stmt.m_expr->Accept(*this);
-    if (value.IsNumber())
-        Log::Info(value.GetNumber());
-    else if (value.IsString())
-        Log::Info(value.GetString());
-    else if (value.IsBool())
-        Log::Info(value.GetBool() ? "true" : "false");
-    else if (value.IsNull())
-        Log::Info("null");
-    else if (value.IsEmpty())
-        Log::Info("void");
+    Value value = stmt.m_expr->accept(*this);
+    if (value.isNumber())
+        log::info(value.getNumber());
+
+    else if (value.isString())
+        log::info(value.getString());
+
+    else if (value.isBool())
+        log::info(value.getBool() ? "true" : "false");
+
+    else if (value.isNull())
+        log::info("null");
+
+    else if (value.isEmpty())
+        log::info("void");
 }
 
-void Interpreter::Visit(StmtVarDecl const& stmt) const
+void Interpreter::visit(StmtVarDecl const& stmt) const
 {
-    // to-do: replace string with string view
-    std::string key = std::string(&m_parser.GetScanner().GetSource()[stmt.m_identifier.GetPositios()], stmt.m_identifier.GetLength());
     if (stmt.m_expr.get())
-        m_environment[key] = stmt.m_expr->Accept(*this);
+        m_environment->define(
+            m_parser.m_scanner.lexemeString(stmt.m_lexeme),
+            stmt.m_expr->accept(*this)
+        );
     else
-        m_environment[key] = Value(std::nullptr_t{});
+        m_environment->define(
+            m_parser.m_scanner.lexemeString(stmt.m_lexeme),
+            Value(std::nullptr_t{})
+        );
+}
+
+void Interpreter::visit(StmtBlock const& stmt) const
+{
+    Environment wrapper(m_environment);
+    executeBlock(stmt.m_stmts, wrapper);
+}
+
+void Interpreter::executeBlock(std::vector<StmtPtr> const& stmts, Environment& environment) const
+{
+    Environment *previousEnvironment = m_environment;
+    m_environment = &environment;
+
+    try
+    {
+        for (auto const& stmt : stmts)
+            stmt->accept(*this);
+    }
+    catch (RuntimeError const& err)
+    {
+        m_environment = previousEnvironment;
+
+        throw RuntimeError(log::stringify(
+            err.what() + " todo: more info.."
+        ));
+    }
+
+    m_environment = previousEnvironment;
 }
