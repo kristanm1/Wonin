@@ -19,7 +19,7 @@ namespace wonin
 
     private:
         Environment* m_parent;
-        utils::unordered_map<Value> m_data{};
+        unordered_map<Value> m_data{};
     };
 
 }

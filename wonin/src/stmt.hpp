@@ -17,7 +17,7 @@ namespace wonin
 
     using StmtPtr = std::unique_ptr<Stmt>;
 
-    struct StmtExpr : public Stmt
+    struct StmtExpr : Stmt
     {
         StmtExpr(ExprPtr&& expr) : m_expr(std::move(expr)) {}
 
@@ -26,7 +26,7 @@ namespace wonin
         ExprPtr m_expr;
     };
 
-    struct StmtPrint : public Stmt
+    struct StmtPrint : Stmt
     {
         StmtPrint(ExprPtr&& expr) : m_expr(std::move(expr)) {}
 
@@ -35,19 +35,19 @@ namespace wonin
         ExprPtr m_expr;
     };
 
-    struct StmtVarDecl : public Stmt
+    struct StmtVarDecl : Stmt
     {
-        StmtVarDecl(Lexeme const& lexeme, ExprPtr&& expr)
-            : m_lexeme(lexeme), m_expr(std::move(expr))
+        StmtVarDecl(Lexeme const& variable, ExprPtr&& initializer)
+            : m_variable(variable), m_initializer(std::move(initializer))
         {}
         
         void accept(Visitor const& visitor) const override { visitor.visit(*this); }
 
-        Lexeme const& m_lexeme;
-        ExprPtr m_expr;
+        Lexeme const& m_variable;
+        ExprPtr m_initializer;
     };
 
-    struct StmtBlock : public Stmt
+    struct StmtBlock : Stmt
     {
         StmtBlock(std::vector<StmtPtr>&& stmts) : m_stmts(std::move(stmts)) {}
 
@@ -56,6 +56,33 @@ namespace wonin
         std::vector<StmtPtr> m_stmts;
     };
 
+    struct StmtIf : Stmt
+    {
+        StmtIf(ExprPtr&& condition, StmtPtr&& stmtThen, StmtPtr&& stmtElse)
+            : m_condition(std::move(condition))
+            , m_stmtThen(std::move(stmtThen))
+            , m_stmtElse(std::move(stmtElse))
+        {}
+
+        void accept(Visitor const& visitor) const override { visitor.visit(*this); }
+
+        ExprPtr m_condition;
+        StmtPtr m_stmtThen;
+        StmtPtr m_stmtElse;
+    };
+
+    struct StmtWhile : Stmt
+    {
+        StmtWhile(ExprPtr&& condition, StmtPtr&& body)
+            : m_condition(std::move(condition))
+            , m_body(std::move(body))
+        {}
+
+        void accept(Visitor const& visitor) const override { return visitor.visit(*this); }
+
+        ExprPtr m_condition;
+        StmtPtr m_body;
+    };
 }
 
 #endif

@@ -7,9 +7,9 @@ add_library(wonin
         src/log.cpp
         src/utils.cpp
         src/lexeme.cpp
-        src/scanner.cpp
+        src/lexer.cpp
         src/parser.cpp
-        src/visitor.cpp
+        src/value.cpp
         src/environment.cpp
         src/interpreter.cpp
         src/wonin.cpp

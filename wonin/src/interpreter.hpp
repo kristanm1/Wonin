@@ -17,12 +17,13 @@ namespace wonin
     public:
         Interpreter(Parser const& parser) : m_parser(parser) {}
 
-        void interpret(Environment& environment) const;
+        bool interpret(Environment& environment) const;
 
     private:
         Value visit(ExprLiteral const& expr)  const override;
         Value visit(ExprGrouping const& expr) const override;
         Value visit(ExprVar const& expr)      const override;
+        Value visit(ExprLogical const& expr)  const override;
         Value visit(ExprUnary const& expr)    const override;
         Value visit(ExprBinary const& expr)   const override;
         Value visit(ExprAsgn const& expr)     const override;
@@ -31,6 +32,8 @@ namespace wonin
         void visit(StmtPrint const& stmt)   const override;
         void visit(StmtVarDecl const& stmt) const override;
         void visit(StmtBlock const& stmt)   const override;
+        void visit(StmtIf const& stmt)      const override;
+        void visit(StmtWhile const& stmt)   const override;
 
         void executeBlock(std::vector<StmtPtr> const& stmts, Environment& environment) const;
 

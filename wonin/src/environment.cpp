@@ -17,10 +17,11 @@ void Environment::assign(strview key, Value&& value)
     auto it = m_data.find(key);
     if (it == m_data.end())
     {
-        if (m_parent != nullptr)
-            m_parent->assign(key, std::move(value));
-        else
+        if (m_parent == nullptr)
             throw RuntimeError(log::stringify("Undefined variable ", key));
+            
+        m_parent->assign(key, std::move(value));
+        return;
     }
     
     it->second = std::move(value);

@@ -2,7 +2,7 @@
 #define _WONIN_PARSER_
 
 #include "types.hpp"
-#include "scanner.hpp"
+#include "lexer.hpp"
 #include "expr.hpp"
 #include "stmt.hpp"
 
@@ -15,16 +15,17 @@ namespace wonin
     {
         friend class Interpreter;
     public:
-        Parser(Scanner const& scanner) : m_scanner(scanner) {}
+        Parser(Lexer const& lexer) : m_lexer(lexer) {}
 
         bool parse();
 
     private:
-        bool isToken(Token token) const { return m_scanner.m_lexemes[m_position].token() == token; }
+        bool isToken(Token token) const { return m_lexer.m_lexemes[m_position].token() == token; }
         bool isEnd()              const { return isToken(Token::EoF); }
-
+        
         template<unsigned N>
-        bool isToken(Token const* tokens);
+        bool isToken(Token const* tokens) const;
+        bool ifTokenConsumeIt(Token token);
 
         void sync();
 
@@ -35,9 +36,14 @@ namespace wonin
         StmtPtr parseStmtExpr();
         StmtPtr parseStmtPrint();
         StmtPtr parseStmtBlock();
+        StmtPtr parseStmtIf();
+        StmtPtr parseStmtWhile();
+        StmtPtr parseStmtFor();
 
         ExprPtr parseExpr();
         ExprPtr parseExprAsgn();
+        ExprPtr parseExprOr();
+        ExprPtr parseExprAnd();
         ExprPtr parseExprEquality();
         ExprPtr parseExprComparison();
         ExprPtr parseExprTerm();
@@ -46,7 +52,10 @@ namespace wonin
         ExprPtr parseExprPrimary();
 
     private:
-        Scanner const& m_scanner;
+        ExprPtr parseParenthesizedExpr(char const* where);
+
+    private:
+        Lexer const& m_lexer;
         std::vector<StmtPtr> m_stmts{};
         usize m_position = 0;
         bool m_hasError = false;

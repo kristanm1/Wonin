@@ -41,7 +41,7 @@ namespace wonin::log
         DBREAK();
     }
 
-    void scannerError(std::string message, usize lineNumber);
+    void lexerError(std::string message, usize lineNumber);
 
 }
 

@@ -1,7 +1,7 @@
 #include "../include/wonin/wonin.hpp"
 #include "log.hpp"
 #include "utils.hpp"
-#include "scanner.hpp"
+#include "lexer.hpp"
 #include "parser.hpp"
 #include "environment.hpp"
 #include "interpreter.hpp"
@@ -15,17 +15,20 @@ namespace
 
     int execute(Environment& environment, std::string const& source)
     {
-        Scanner scanner(source);
+        Lexer lexer(source);
 
-        if (!scanner.scan())
+        if (!lexer.scan())
             return -1;
         
-        Parser parser(scanner);
+        Parser parser(lexer);
 
         if (!parser.parse())
             return -2;
         
-        Interpreter(parser).interpret(environment);
+        Interpreter interpreter(parser);
+
+        if (!interpreter.interpret(environment))
+            return -3;
 
         return 0;
     }

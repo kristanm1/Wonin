@@ -1,4 +1,4 @@
-#include "scanner.hpp"
+#include "lexer.hpp"
 #include "log.hpp"
 #include "utils.hpp"
 
@@ -8,7 +8,7 @@
 
 using namespace wonin;
 
-utils::unordered_map<Token> Scanner::s_keywords =
+unordered_map<Token> Lexer::s_keywords =
 {
     { "and",    Token::And },
     { "or" ,    Token::Or },
@@ -28,7 +28,7 @@ utils::unordered_map<Token> Scanner::s_keywords =
     { "return", Token::Return },
 };
 
-bool Scanner::scan()
+bool Lexer::scan()
 {
     m_lexemes.clear();
     m_hasError = false;
@@ -41,7 +41,7 @@ bool Scanner::scan()
     return !m_hasError;
 }
 
-void Scanner::print()
+void Lexer::print()
 {
     for (usize i = 0; i < m_lexemes.size(); i++)
     {
@@ -49,7 +49,7 @@ void Scanner::print()
     }
 }
 
-void Scanner::printLexeme(usize position) const
+void Lexer::printLexeme(usize position) const
 {
     auto const& lexeme = m_lexemes[position];
     if (lexeme.length() == 0)
@@ -67,104 +67,103 @@ void Scanner::printLexeme(usize position) const
         );
 }
 
-usize Scanner::matchToken()
+usize Lexer::matchToken()
 {
-    usize offset = 0;
     switch (m_source[m_position])
     {
-        case '(':
-            return addLexeme(m_position, 1, Token::LeftParen);
+    case '(':
+        return addLexeme(m_position, 1, Token::LeftParen);
 
-        case ')':
-            return addLexeme(m_position, 1, Token::RightParen);
+    case ')':
+        return addLexeme(m_position, 1, Token::RightParen);
 
-        case '{':
-            return addLexeme(m_position, 1, Token::LeftBrace);
+    case '{':
+        return addLexeme(m_position, 1, Token::LeftBrace);
 
-        case '}':
-            return addLexeme(m_position, 1, Token::RightBrace);
+    case '}':
+        return addLexeme(m_position, 1, Token::RightBrace);
 
-        case ';':
-            return addLexeme(m_position, 1, Token::Semicolon);
+    case ';':
+        return addLexeme(m_position, 1, Token::Semicolon);
 
-        case '+':
-            return addLexeme(m_position, 1, Token::Plus);
+    case '+':
+        return addLexeme(m_position, 1, Token::Plus);
 
-        case '-':
-            return addLexeme(m_position, 1, Token::Minus);
+    case '-':
+        return addLexeme(m_position, 1, Token::Minus);
 
-        case '*':
-            return addLexeme(m_position, 1, Token::Star);
+    case '*':
+        return addLexeme(m_position, 1, Token::Star);
 
-        case '/':
-            if (!isEnd(m_position + 1) && isMatch('/', m_position + 1))
-                return matchLineComment();
-            return addLexeme(m_position, 1, Token::Slash);
+    case '/':
+        if (!isEnd(1) && isMatch('/', 1))
+            return matchLineComment();
+        return addLexeme(m_position, 1, Token::Slash);
 
-        case '!':
-            if (!isEnd(m_position + 1) && isMatch('=', 1))
-                return addLexeme(m_position, 2, Token::BangEqual);
-            return addLexeme(m_position, 1, Token::Bang);
+    case '!':
+        if (!isEnd(1) && isMatch('=', 1))
+            return addLexeme(m_position, 2, Token::BangEqual);
+        return addLexeme(m_position, 1, Token::Bang);
 
-        case '=':
-            if (!isEnd(m_position + 1) && isMatch('=', 1))
-                return addLexeme(m_position, 2, Token::EqualEqual);
-            return addLexeme(m_position, 1, Token::Equal);
+    case '=':
+        if (!isEnd(1) && isMatch('=', 1))
+            return addLexeme(m_position, 2, Token::EqualEqual);
+        return addLexeme(m_position, 1, Token::Equal);
 
-        case '>':
-            if (!isEnd(m_position + 1) && isMatch('=', 1))
-                return addLexeme(m_position, 2, Token::GreaterEqual);
-            return addLexeme(m_position, 1, Token::Greater);
+    case '>':
+        if (!isEnd(1) && isMatch('=', 1))
+            return addLexeme(m_position, 2, Token::GreaterEqual);
+        return addLexeme(m_position, 1, Token::Greater);
 
-        case '<':
-            if (!isEnd(m_position + 1) && isMatch('=', 1))
-                return addLexeme(m_position, 2, Token::LessEqual);
-            return addLexeme(m_position, 1, Token::Less);
+    case '<':
+        if (!isEnd(1) && isMatch('=', 1))
+            return addLexeme(m_position, 2, Token::LessEqual);
+        return addLexeme(m_position, 1, Token::Less);
 
-        case '"':
-            return matchString();
+    case '"':
+        return matchString();
 
-        case ' ':
-        case '\t':
-        case '\r':
-        case '\n':
-            return 1;
+    case ' ':
+    case '\t':
+    case '\r':
+    case '\n':
+        return 1;
 
-        default:
-            if (utils::isDigit(m_source[m_position]))
-                return matchNumber();
-            else if (utils::isAlpha(m_source[m_position]))
-                return matchIdentifier();
-            
-            m_hasError = true;
-            log::scannerError(
-                log::stringify("Unexpected character ", m_source[m_position]),
-                lineNumber(m_position)
-            );
-            
-            return 1;
+    default:
+        if (utils::isDigit(m_source[m_position]))
+            return matchNumber();
+        else if (utils::isAlpha(m_source[m_position]))
+            return matchIdentifier();
+        
+        m_hasError = true;
+        log::lexerError(
+            log::stringify("Unexpected character ", m_source[m_position]),
+            lineNumber(m_position)
+        );
+        
+        return 1;
     }
 
 }
 
-strview Scanner::lexemeView(Lexeme const& lexeme) const
+strview Lexer::lexemeView(Lexeme const& lexeme) const
 {
     return std::string_view(&m_source[lexeme.position()], lexeme.length());
 }
 
-str Scanner::lexemeString(Lexeme const& lexeme) const
+str Lexer::lexemeString(Lexeme const& lexeme) const
 {
     return std::string(lexemeView(lexeme));
 }
 
-double Scanner::lexemeNumber(Lexeme const& lexeme) const
+double Lexer::lexemeNumber(Lexeme const& lexeme) const
 {
     char const* begin = &m_source[lexeme.position()];
     char* end = const_cast<char*>(begin) + lexeme.length();
     return std::strtod(begin, &end);
 }
 
-usize Scanner::lineNumber(usize position) const
+usize Lexer::lineNumber(usize position) const
 {
     usize line = 1;
     for (usize i = 0; i < position; i++)
@@ -174,13 +173,13 @@ usize Scanner::lineNumber(usize position) const
     return line;
 }
 
-usize Scanner::addLexeme(usize position, usize length, Token token)
+usize Lexer::addLexeme(usize position, usize length, Token token)
 {
     m_lexemes.emplace_back(position, length, token);
     return length;
 }
 
-usize Scanner::matchLineComment()
+usize Lexer::matchLineComment()
 {
     usize offset = 2;
     while (!isEnd(offset))
@@ -194,7 +193,7 @@ usize Scanner::matchLineComment()
     return offset;
 }
 
-usize Scanner::matchString()
+usize Lexer::matchString()
 {
     usize offset = 1;
     while (!isEnd(offset))
@@ -207,12 +206,12 @@ usize Scanner::matchString()
     }
 
     m_hasError = true;
-    log::scannerError("Unterminated string literal", lineNumber(m_position));
+    log::lexerError("Unterminated string literal", lineNumber(m_position));
 
     return offset;
 }
 
-usize Scanner::matchNumber()
+usize Lexer::matchNumber()
 {
     usize offset = 1;
     while (!isEnd(offset))
@@ -238,7 +237,7 @@ usize Scanner::matchNumber()
     return addLexeme(m_position, offset, Token::Number);
 }
 
-usize Scanner::matchIdentifier()
+usize Lexer::matchIdentifier()
 {
     usize offset = 1;
     while (!isEnd(offset))

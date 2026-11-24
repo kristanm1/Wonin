@@ -1,4 +1,5 @@
-#include "visitor.hpp"
+#include "value.hpp"
+#include "utils.hpp"
 
 using namespace wonin;
 
@@ -71,6 +72,9 @@ Value Value::operator+(Value const& rhs) const
     if (isNumber() && rhs.isNumber())
         return Value(getNumber() + rhs.getNumber());
     
+    if (isString() && rhs.isString())
+        return Value(getString() + rhs.getString());
+    
     throw RuntimeError("Binary+ used on invalid type");
 }
 
@@ -101,4 +105,12 @@ Value Value::operator/(Value const& rhs) const
     }
     
     throw RuntimeError("Binary/ used on invalid type");
+}
+
+bool Value::getBool() const
+{
+    if (isBool())
+        return getType<bool>();
+
+    return false;    
 }

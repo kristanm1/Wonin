@@ -14,7 +14,7 @@ void log::errorImpl(std::string const& s)
     std::cerr << s << std::endl;
 }
 
-void log::scannerError(std::string message, usize lineNumber)
+void log::lexerError(std::string message, usize lineNumber)
 {
-    error("Scanner error: ", message, " at line: ", lineNumber);
+    error("Lexer error: ", message, " at line: ", lineNumber);
 }

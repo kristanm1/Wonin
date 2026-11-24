@@ -17,7 +17,7 @@ namespace wonin
 
     using ExprPtr = std::unique_ptr<Expr>;
 
-    struct ExprLiteral : public Expr
+    struct ExprLiteral : Expr
     {
         template<typename T>
         ExprLiteral(T&& data) : m_data(std::forward<T>(data)) {}
@@ -27,7 +27,7 @@ namespace wonin
         Value m_data;
     };
 
-    struct ExprGrouping : public Expr
+    struct ExprGrouping : Expr
     {
         ExprGrouping(ExprPtr&& expr) : m_expr(std::move(expr)) {}
 
@@ -36,35 +36,35 @@ namespace wonin
         ExprPtr m_expr;
     };
 
-    struct ExprUnary : public Expr
+    struct ExprUnary : Expr
     {
-        ExprUnary(Lexeme const& lexeme, ExprPtr&& expr)
-            : m_lexeme(lexeme)
+        ExprUnary(Lexeme const& op, ExprPtr&& expr)
+            : m_op(op)
             , m_expr(std::move(expr))
         {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme const& m_lexeme;
+        Lexeme const& m_op;
         ExprPtr m_expr;
     };
 
-    struct ExprBinary : public Expr
+    struct ExprBinary : Expr
     {
-        ExprBinary(ExprPtr&& left, Lexeme const& lexeme, ExprPtr&& right)
-            : m_lexeme(lexeme)
+        ExprBinary(Lexeme const& op, ExprPtr&& left, ExprPtr&& right)
+            : m_op(op)
             , m_left(std::move(left))
             , m_right(std::move(right))
         {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme const& m_lexeme;
+        Lexeme const& m_op;
         ExprPtr m_left;
         ExprPtr m_right;
     };
 
-    struct ExprVar : public Expr
+    struct ExprVar : Expr
     {
         ExprVar(Lexeme const& lexeme) : m_lexeme(lexeme) {}
 
@@ -73,9 +73,9 @@ namespace wonin
         Lexeme const& m_lexeme;
     };
 
-    struct ExprAsgn : public Expr
+    struct ExprAsgn : Expr
     {
-        ExprAsgn(Lexeme lexeme, ExprPtr expr)
+        ExprAsgn(Lexeme lexeme, ExprPtr&& expr)
             : m_lexeme(lexeme)
             , m_expr(std::move(expr))
         {}
@@ -84,6 +84,21 @@ namespace wonin
 
         Lexeme m_lexeme;
         ExprPtr m_expr;
+    };
+
+    struct ExprLogical : Expr
+    {
+        ExprLogical(Lexeme const& op, ExprPtr&& left, ExprPtr&& right)
+            : m_op(op)
+            , m_left(std::move(left))
+            , m_right(std::move(right))
+        {}
+
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
+
+        Lexeme const& m_op;
+        ExprPtr       m_left;
+        ExprPtr       m_right;
     };
 }
 

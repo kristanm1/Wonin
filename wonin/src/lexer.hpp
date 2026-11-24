@@ -11,13 +11,13 @@
 namespace wonin
 {
 
-    class Scanner
+    class Lexer
     {
         friend class Parser;
         friend class Interpreter;
 
     public:
-        Scanner(std::string const& source) : m_source(source) {};
+        Lexer(std::string const& source) : m_source(source) {};
 
         bool scan();
         void print();
@@ -44,7 +44,7 @@ namespace wonin
         void printLexeme(usize position) const;
 
     private:
-        static utils::unordered_map<Token> s_keywords;
+        static unordered_map<Token> s_keywords;
         
     private:
         std::string const&  m_source;

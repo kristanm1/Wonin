@@ -14,16 +14,6 @@ namespace wonin
     using strview = std::basic_string_view<chr>;
     using cstr    = chr const*;
 
-    class RuntimeError
-    {
-    public:
-        RuntimeError(str message) : m_message(message) {}
-
-        str const& what() const { return m_message; }
-    private:
-        str m_message;
-    };
-
 }
 
 #endif
