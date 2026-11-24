@@ -2,7 +2,5 @@
 
 int main(int argc, char *argv[])
 {
-
-    char* args[2] = {"", "../../interpreter/res/statements.txt"};
-    return wonin::run(2, args);
+    return wonin::run(argc, argv);
 }
