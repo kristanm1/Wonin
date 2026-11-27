@@ -2,6 +2,7 @@
 #define _WONIN_UTILS_
 
 #include "types.hpp"
+#include "value.hpp"
 
 #include <string>
 #include <string_view>
@@ -37,6 +38,16 @@ namespace wonin
         str const& what() const { return m_message; }
     private:
         str m_message;
+    };
+
+    class Return
+    {
+    public:
+        Return(Value&& value) : m_value(std::move(value)) {}
+        Value consume() { return std::move(m_value); }
+
+    private:
+        Value m_value;
     };
 
     template<typename T>

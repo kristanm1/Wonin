@@ -3,13 +3,18 @@
 
 #include "types.hpp"
 #include "lexer.hpp"
-#include "expr.hpp"
-#include "stmt.hpp"
 
 #include <vector>
 
 namespace wonin
 {
+
+    struct Expr;
+    struct Stmt;
+
+    using exprptr  = std::shared_ptr<Expr>;
+    using stmtptr  = std::shared_ptr<Stmt>;
+    using stmtlist = std::vector<stmtptr>;
 
     class Parser
     {
@@ -21,44 +26,50 @@ namespace wonin
 
     private:
         bool isToken(Token token) const { return m_lexer.m_lexemes[m_position].token() == token; }
-        bool isEnd()              const { return isToken(Token::EoF); }
+        bool isEnd()              const { return m_position >= m_lexer.m_lexemes.size() || isToken(Token::EoF); }
         
         template<unsigned N>
-        bool isToken(Token const* tokens) const;
+        bool ifTokenConsumeIt(Token const* tokens);
         bool ifTokenConsumeIt(Token token);
 
-        void sync();
+        void   sync();
+        Lexeme const& current()  { return m_lexer.m_lexemes[m_position]; }
+        Lexeme const& previous() { return m_lexer.m_lexemes[m_position - 1]; }
 
-        StmtPtr parseDecl();
-        StmtPtr parseVarDecl();
+        stmtptr parseDecl();
+        stmtptr parseVarDecl();
+        stmtptr parseFunDecl();
 
-        StmtPtr parseStmt();
-        StmtPtr parseStmtExpr();
-        StmtPtr parseStmtPrint();
-        StmtPtr parseStmtBlock();
-        StmtPtr parseStmtIf();
-        StmtPtr parseStmtWhile();
-        StmtPtr parseStmtFor();
+        stmtptr parseStmt();
+        stmtptr parseStmtExpr();
+        stmtptr parseStmtPrint();
+        stmtptr parseStmtReturn();
+        stmtptr parseStmtBlock();
+        stmtptr parseStmtIf();
+        stmtptr parseStmtWhile();
+        stmtptr parseStmtFor();
 
-        ExprPtr parseExpr();
-        ExprPtr parseExprAsgn();
-        ExprPtr parseExprOr();
-        ExprPtr parseExprAnd();
-        ExprPtr parseExprEquality();
-        ExprPtr parseExprComparison();
-        ExprPtr parseExprTerm();
-        ExprPtr parseExprFactor();
-        ExprPtr parseExprUnary();
-        ExprPtr parseExprPrimary();
+        exprptr parseExpr();
+        exprptr parseExprAsgn();
+        exprptr parseExprOr();
+        exprptr parseExprAnd();
+        exprptr parseExprEquality();
+        exprptr parseExprComparison();
+        exprptr parseExprTerm();
+        exprptr parseExprFactor();
+        exprptr parseExprUnary();
+        exprptr parseExprCall();
+        exprptr parseExprPrimary();
 
     private:
-        ExprPtr parseParenthesizedExpr(char const* where);
+        exprptr parseParenthesizedExpr(char const* where);
+        exprptr parseCallArguments(exprptr&& expr);
 
     private:
         Lexer const& m_lexer;
-        std::vector<StmtPtr> m_stmts{};
-        usize m_position = 0;
-        bool m_hasError = false;
+        stmtlist     m_stmts{};
+        usize        m_position = 0;
+        bool         m_hasError = false;
     };
 
 }

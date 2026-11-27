@@ -13,21 +13,20 @@ using namespace wonin;
 namespace
 {
 
-    int execute(Environment& environment, std::string const& source)
+    int execute(
+        Lexer& lexer,
+        Parser& parser,
+        Interpreter& interpreter,
+        std::string const& source
+    )
     {
-        Lexer lexer(source);
-
-        if (!lexer.scan())
+        if (!lexer.scan(source))
             return -1;
-        
-        Parser parser(lexer);
 
         if (!parser.parse())
             return -2;
-        
-        Interpreter interpreter(parser);
 
-        if (!interpreter.interpret(environment))
+        if (!interpreter.interpret(parser))
             return -3;
 
         return 0;
@@ -35,15 +34,11 @@ namespace
 
 }
 
-int wonin::interpret(std::string const& source)
-{
-    Environment environment{};
-    return execute(environment, source);
-}
-
 int wonin::run(int argc, char *argv[])
 {
-    Environment environment{};
+    Lexer lexer{};
+    Parser parser(lexer);
+    Interpreter interpreter{};
 
     if (argc == 1)
     {
@@ -54,15 +49,13 @@ int wonin::run(int argc, char *argv[])
             if (!std::getline(std::cin, line))
                 break;
             
-            execute(environment, line);
+            execute(lexer, parser, interpreter, line);
         }
         return 0;
     }
 
     if (argc == 2)
-    {
-        return execute(environment, utils::loadText(argv[1]));
-    }
+        return execute(lexer, parser, interpreter, utils::loadText(argv[1]));
 
     log::info("Usage: wonin [script]");
     return -1;

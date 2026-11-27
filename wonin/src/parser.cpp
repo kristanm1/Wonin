@@ -1,5 +1,7 @@
 #include "parser.hpp"
 #include "log.hpp"
+#include "expr.hpp"
+#include "stmt.hpp"
 
 #include <sstream>
 #include <vector>
@@ -29,10 +31,10 @@ bool Parser::parse()
 }
 
 template<unsigned N>
-bool Parser::isToken(Token const* tokens) const
+bool Parser::ifTokenConsumeIt(Token const* tokens)
 {
     for (unsigned i = 0; i < N; i++)
-        if (isToken(tokens[i]))
+        if (ifTokenConsumeIt(tokens[i]))
             return true;
 
     return false;
@@ -54,47 +56,115 @@ void Parser::sync()
         Token::If, Token::While, Token::Print, Token::Return, Token::EoF
     };
 
-    while (!isToken<sizeof(tokens) / sizeof(tokens[0])>(tokens))
-        m_position++;
+    while (!ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens)) {}
 }
 
-StmtPtr Parser::parseDecl()
+stmtptr Parser::parseDecl()
 {
     if (ifTokenConsumeIt(Token::Var))
         return parseVarDecl();
+    
+    if (ifTokenConsumeIt(Token::Fun))
+        return parseFunDecl();
 
     return parseStmt();
 }
 
-StmtPtr Parser::parseVarDecl()
+stmtptr Parser::parseVarDecl()
 {
-    Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-    if (lexeme.token() != Token::Identifier)
+    if (!ifTokenConsumeIt(Token::Identifier))
         throw RuntimeError(log::stringify(
             "Variable declaration is missing identifier at line ",
-            m_lexer.lineNumber(lexeme)
+            m_lexer.lineNumber(current())
         ));
     
-    auto stmtVarDecl = std::make_unique<StmtVarDecl>(lexeme, ExprPtr{});
+    Lexeme const& lexeme = previous();
+    exprptr initializer = nullptr;
     if (ifTokenConsumeIt(Token::Equal))
-        stmtVarDecl->m_initializer = parseExpr();
+        initializer = parseExpr();
+
+    stmtptr stmtVarDecl = newptr<StmtVarDecl>(
+        m_lexer.lexemeString(lexeme),
+        std::move(initializer),
+        m_lexer.lineNumber(previous())
+    );
 
     if (!ifTokenConsumeIt(Token::Semicolon))
         throw RuntimeError(log::stringify(
-            "Variable declaration statement is missing ; at line",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            "Variable declaration is missing ; at line",
+            m_lexer.lineNumber(current())
         ));
     
     return stmtVarDecl;
 }
 
-StmtPtr Parser::parseStmt()
+stmtptr Parser::parseFunDecl()
+{
+    Lexeme const& lexeme = current();
+    if (!ifTokenConsumeIt(Token::Identifier))
+        throw RuntimeError(log::stringify(
+            "Function declaration is missing identifier at line ",
+            m_lexer.lineNumber(lexeme)
+        ));
+    
+    if (!ifTokenConsumeIt(Token::LeftParen))
+        throw RuntimeError(log::stringify(
+            "Function declaration is missing ( at line",
+            m_lexer.lineNumber(current())
+        ));
+    
+    std::vector<str> parameters{};
+    if (!isToken(Token::RightParen))
+    {
+        do
+        {
+            if (parameters.size() > 255)
+                log::error(
+                    "Function declaration has more then 255 arguments at line ",
+                    m_lexer.lineNumber(current())
+                );
+            
+            if (!ifTokenConsumeIt(Token::Identifier))
+                throw RuntimeError(log::stringify(
+                    "Invalid function parameter expected identifier at line ",
+                    m_lexer.lineNumber(current())
+                ));
+            
+            parameters.push_back(m_lexer.lexemeString(previous()));
+            
+        } while (ifTokenConsumeIt(Token::Comma));
+    }
+
+    if (!ifTokenConsumeIt(Token::RightParen))
+        throw RuntimeError(log::stringify(
+            "Function declaration is missing ) at line",
+            m_lexer.lineNumber(current())
+        ));
+    
+    if (!ifTokenConsumeIt(Token::LeftBrace))
+        throw RuntimeError(log::stringify(
+            "Function declaration is missing { before body at line",
+            m_lexer.lineNumber(current())
+        ));
+
+    return newptr<StmtFunDecl>(
+        m_lexer.lexemeString(lexeme),
+        std::move(parameters),
+        std::move(static_cast<StmtBlock*>(parseStmtBlock().get())->m_stmts),
+        m_lexer.lineNumber(previous())
+    );
+}
+
+stmtptr Parser::parseStmt()
 {
     if (ifTokenConsumeIt(Token::If))
         return parseStmtIf();
 
     if (ifTokenConsumeIt(Token::Print))
         return parseStmtPrint();
+    
+    if (ifTokenConsumeIt(Token::Return))
+        return parseStmtReturn();
 
     if (ifTokenConsumeIt(Token::LeftBrace))
         return parseStmtBlock();
@@ -108,33 +178,57 @@ StmtPtr Parser::parseStmt()
     return parseStmtExpr();
 }
 
-StmtPtr Parser::parseStmtExpr()
+stmtptr Parser::parseStmtExpr()
 {
-    ExprPtr expr = parseExpr();
+    exprptr expr = parseExpr();
     if (ifTokenConsumeIt(Token::Semicolon))
-        return std::make_unique<StmtExpr>(std::move(expr));
+        return newptr<StmtExpr>(
+            std::move(expr),
+            m_lexer.lineNumber(previous())
+        );
 
     throw RuntimeError(log::stringify(
         "Expression statement is missing ; at line ",
-        m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+        m_lexer.lineNumber(current())
     ));
 }
 
-StmtPtr Parser::parseStmtPrint()
+stmtptr Parser::parseStmtPrint()
 {
-    ExprPtr expr = parseExpr();
+    exprptr expr = parseExpr();
     if (ifTokenConsumeIt(Token::Semicolon))
-        return std::make_unique<StmtPrint>(std::move(expr));
+        return newptr<StmtPrint>(
+            std::move(expr),
+            m_lexer.lineNumber(previous())
+        );
 
     throw RuntimeError(log::stringify(
         "Print statement is missing ; at line ",
-        m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+        m_lexer.lineNumber(current())
     ));
 }
 
-StmtPtr Parser::parseStmtBlock()
+stmtptr Parser::parseStmtReturn()
 {
-    std::vector<StmtPtr> stmts{};
+    exprptr expr = nullptr;
+    if (!isToken(Token::Semicolon))
+        expr = parseExpr();
+    
+    if (!ifTokenConsumeIt(Token::Semicolon))
+        throw RuntimeError(log::stringify(
+            "Return statement is missing ; at line ",
+            m_lexer.lineNumber(current())
+        ));
+    
+    return newptr<StmtReturn>(
+        std::move(expr),
+        m_lexer.lineNumber(previous())
+    );
+}
+
+stmtptr Parser::parseStmtBlock()
+{
+    std::vector<stmtptr> stmts{};
     while (!(isEnd() || isToken(Token::RightBrace)))
         stmts.push_back(parseDecl());
 
@@ -144,61 +238,68 @@ StmtPtr Parser::parseStmtBlock()
     if (!ifTokenConsumeIt(Token::RightBrace))
         throw RuntimeError(log::stringify(
             "Expected } at the end of block at line ",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            m_lexer.lineNumber(current())
         ));
 
-    return make_unique<StmtBlock>(std::move(stmts));
+    return newptr<StmtBlock>(
+        std::move(stmts),
+        m_lexer.lineNumber(previous())
+    );
 }
 
-ExprPtr Parser::parseParenthesizedExpr(char const* where)
+exprptr Parser::parseParenthesizedExpr(char const* where)
 {
     if (!ifTokenConsumeIt(Token::LeftParen))
         throw RuntimeError(log::stringify(
-            "Expected ( after", where , " at line ",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            "Expected ( after ", where , " at line ",
+            m_lexer.lineNumber(current())
         ));
     
-    ExprPtr expr = parseExpr();
+    exprptr expr = parseExpr();
     
     if (!ifTokenConsumeIt(Token::RightParen))
         throw RuntimeError(log::stringify(
-            "Expected ) after condition expression in", where, " statement at line ",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            "Expected ) after condition expression in ", where, " statement at line ",
+            m_lexer.lineNumber(current())
         ));
     
     return expr;
 }
 
-StmtPtr Parser::parseStmtIf()
+stmtptr Parser::parseStmtIf()
 {
-    ExprPtr expr = parseParenthesizedExpr("if");
-    StmtPtr stmtThen = parseStmt();
-    StmtPtr stmtElse = nullptr;
+    exprptr expr = parseParenthesizedExpr("if");
+    stmtptr stmtThen = parseStmt();
+    stmtptr stmtElse = nullptr;
     if (ifTokenConsumeIt(Token::Else))
-        stmtElse = std::move(parseStmt());
+        stmtElse = parseStmt();
 
-    return std::make_unique<StmtIf>(
-        std::move(expr), std::move(stmtThen), std::move(stmtElse)
+    return newptr<StmtIf>(
+        std::move(expr),
+        std::move(stmtThen),
+        std::move(stmtElse),
+        m_lexer.lineNumber(previous())
     );
 }
 
-StmtPtr Parser::parseStmtWhile()
+stmtptr Parser::parseStmtWhile()
 {
-    ExprPtr expr = parseParenthesizedExpr("while");
-    StmtPtr stmt = parseStmt();
-
-    return std::make_unique<StmtWhile>(std::move(expr), std::move(stmt));
+    return newptr<StmtWhile>(
+        parseParenthesizedExpr("while"),
+        parseStmt(),
+        m_lexer.lineNumber(previous())
+    );
 }
 
-StmtPtr Parser::parseStmtFor()
+stmtptr Parser::parseStmtFor()
 {
     if (!ifTokenConsumeIt(Token::LeftParen))
         throw RuntimeError(log::stringify(
             "Expected ( after for at line ",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            m_lexer.lineNumber(current())
         ));
     
-    StmtPtr initializer;
+    stmtptr initializer;
     if (ifTokenConsumeIt(Token::Semicolon))
         initializer = nullptr;
     else if (ifTokenConsumeIt(Token::Var))
@@ -206,70 +307,76 @@ StmtPtr Parser::parseStmtFor()
     else
         initializer = parseStmtExpr();
     
-    ExprPtr condition = nullptr;
+    exprptr condition = nullptr;
     if (!isToken(Token::Semicolon))
         condition = parseExpr();
     
     if (!ifTokenConsumeIt(Token::Semicolon))
         throw RuntimeError(log::stringify(
             "Expected ; after for condition expression at line ",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            m_lexer.lineNumber(current())
         ));
     
-    ExprPtr increment = nullptr;
+    exprptr increment = nullptr;
     if (!isToken(Token::RightParen))
         increment = parseExpr();
     
     if (!ifTokenConsumeIt(Token::RightParen))
         throw RuntimeError(log::stringify(
             "Expected ) after for increment expression at line ",
-            m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+            m_lexer.lineNumber(current())
         ));
     
-    StmtPtr stmt = parseStmt();
+    stmtptr stmt = parseStmt();
 
     if (increment.get())
     {
-        std::vector<StmtPtr> stmts{};
+        std::vector<stmtptr> stmts{};
         stmts.push_back(std::move(stmt));
-        stmts.push_back(std::make_unique<StmtExpr>(std::move(increment)));
-        stmt = std::make_unique<StmtBlock>(std::move(stmts));
+        stmts.push_back(newptr<StmtExpr>(
+            std::move(increment),
+            increment->lineNumber()
+        ));
+        stmt = newptr<StmtBlock>(std::move(stmts), -1);
     }
     
     if (!condition.get())
-        condition = std::make_unique<ExprLiteral>(true);
+        condition = newptr<ExprLiteral>(true, -1);
     
-    stmt = std::make_unique<StmtWhile>(std::move(condition), std::move(stmt));
+    stmt = newptr<StmtWhile>(
+        std::move(condition), std::move(stmt), -1
+    );
 
     if (initializer.get())
     {
-        std::vector<StmtPtr> stmts{};
+        std::vector<stmtptr> stmts{};
         stmts.push_back(std::move(initializer));
         stmts.push_back(std::move(stmt));
-        stmt = std::make_unique<StmtBlock>(std::move(stmts));
+        stmt = newptr<StmtBlock>(std::move(stmts), -1);
     }
 
     return stmt;
 }
 
-ExprPtr Parser::parseExpr()
+exprptr Parser::parseExpr()
 {
     return parseExprAsgn();
 }
 
-ExprPtr Parser::parseExprAsgn()
+exprptr Parser::parseExprAsgn()
 {
-    ExprPtr expr = parseExprOr();
-
-    if (isToken(Token::Equal))
+    exprptr expr = parseExprOr();
+    if (ifTokenConsumeIt(Token::Equal))
     {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr value = parseExprAsgn();
-        ExprVar *exprVar = dynamic_cast<ExprVar*>(expr.get());
+        Lexeme const& lexeme = previous();
+        exprptr value = parseExprAsgn();
+        auto *exprVar = dynamic_cast<ExprVariable*>(expr.get());
         if (exprVar != nullptr)
-        {
-            return std::make_unique<ExprAsgn>(exprVar->m_lexeme, std::move(value));
-        }
+            return newptr<ExprAsgn>(
+                std::move(exprVar->m_name),
+                std::move(value),
+                m_lexer.lineNumber(lexeme)
+            );
 
         throw RuntimeError(log::stringify(
             "Invalid assignment expression, left hand side is lvalue at line ",
@@ -280,123 +387,202 @@ ExprPtr Parser::parseExprAsgn()
     return expr;
 }
 
-ExprPtr Parser::parseExprOr()
+exprptr Parser::parseExprOr()
 {
-    ExprPtr expr = parseExprAnd();
-    while (isToken(Token::Or))
-    {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprAnd();
-        expr = std::make_unique<ExprLogical>(lexeme, std::move(expr), std::move(right));
-    }
+    exprptr expr = parseExprAnd();
+    while (ifTokenConsumeIt(Token::Or))   
+        expr = newptr<ExprLogical>(
+            previous().token(),
+            std::move(expr),
+            parseExprAnd(),
+            m_lexer.lineNumber(previous())
+        );
+
     return expr;
 }
 
-ExprPtr Parser::parseExprAnd()
+exprptr Parser::parseExprAnd()
 {
-    ExprPtr expr = parseExprEquality();
-    while (isToken(Token::And))
-    {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprEquality();
-        expr = std::make_unique<ExprLogical>(lexeme, std::move(expr), std::move(right));
-    }
+    exprptr expr = parseExprEquality();
+    while (ifTokenConsumeIt(Token::And))
+        expr = newptr<ExprLogical>(
+            previous().token(),
+            std::move(expr),
+            parseExprEquality(),
+            m_lexer.lineNumber(previous())
+        );
+
     return expr;
 }
 
-ExprPtr Parser::parseExprEquality()
+exprptr Parser::parseExprEquality()
 {
-    ExprPtr expr = parseExprComparison();
+    exprptr expr = parseExprComparison();
     Token tokens[] = { Token::BangEqual, Token::EqualEqual };
-    while (isToken<sizeof(tokens) / sizeof(tokens[0])>(tokens))
+    while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprComparison();
-        expr = std::make_unique<ExprBinary>(lexeme, std::move(expr), std::move(right));
+        Lexeme const& lexeme = previous();
+        exprptr right = parseExprComparison();
+        expr = newptr<ExprBinary>(
+            lexeme.token(),
+            std::move(expr),
+            std::move(right),
+            m_lexer.lineNumber(lexeme)
+        );
     }
     return expr;
 }
 
-ExprPtr Parser::parseExprComparison()
+exprptr Parser::parseExprComparison()
 {
-    ExprPtr expr = parseExprTerm();
+    exprptr expr = parseExprTerm();
     Token tokens[] = { Token::Less, Token::LessEqual, Token::Greater, Token::GreaterEqual };
-    while (isToken<sizeof(tokens) / sizeof(tokens[0])>(tokens))
+    while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprTerm();
-        expr = std::make_unique<ExprBinary>(lexeme, std::move(expr), std::move(right));
+        Lexeme const& lexeme = previous();
+        exprptr right = parseExprTerm();
+        expr = newptr<ExprBinary>(
+            lexeme.token(),
+            std::move(expr),
+            std::move(right),
+            m_lexer.lineNumber(lexeme)
+        );
     }
     return expr;
 }
 
-ExprPtr Parser::parseExprTerm()
+exprptr Parser::parseExprTerm()
 {
-    ExprPtr expr = parseExprFactor();
+    exprptr expr = parseExprFactor();
     Token tokens[] = { Token::Plus, Token::Minus };
-    while (isToken<sizeof(tokens) / sizeof(tokens[0])>(tokens))
+    while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprFactor();
-        expr = std::make_unique<ExprBinary>(lexeme, std::move(expr), std::move(right));
+        Lexeme const& lexeme = previous();
+        exprptr right = parseExprFactor();
+        expr = newptr<ExprBinary>(
+            lexeme.token(),
+            std::move(expr),
+            std::move(right),
+            m_lexer.lineNumber(lexeme)
+        );
     }
     return expr;
 }
 
-ExprPtr Parser::parseExprFactor()
+exprptr Parser::parseExprFactor()
 {
-    ExprPtr expr = parseExprUnary();
+    exprptr expr = parseExprUnary();
     Token tokens[] = { Token::Star, Token::Slash };
-    while (isToken<sizeof(tokens) / sizeof(tokens[0])>(tokens))
+    while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprUnary();
-        expr = std::make_unique<ExprBinary>(lexeme, std::move(expr), std::move(right));
+        Lexeme const& lexeme = previous();
+        exprptr right = parseExprUnary();
+        expr = newptr<ExprBinary>(
+            lexeme.token(),
+            std::move(expr),
+            std::move(right),
+            m_lexer.lineNumber(lexeme)
+        );
     }
     return expr;
 }
 
-ExprPtr Parser::parseExprUnary()
+exprptr Parser::parseExprUnary()
 {
     Token tokens[] = { Token::Minus, Token::Bang };
-    if (isToken<sizeof(tokens) / sizeof(tokens[0])>(tokens))
+    if (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
-        Lexeme const& lexeme = m_lexer.m_lexemes[m_position++];
-        ExprPtr right = parseExprUnary();
-        return std::make_unique<ExprUnary>(lexeme, std::move(right));
+        Lexeme const& lexeme = previous();
+        exprptr right = parseExprUnary();
+        return newptr<ExprUnary>(
+            lexeme.token(),
+            std::move(right),
+            m_lexer.lineNumber(lexeme)
+        );
     }
-    return parseExprPrimary();
+    return parseExprCall();
 }
 
-ExprPtr Parser::parseExprPrimary()
+exprptr Parser::parseExprCall()
 {
-    if (isToken(Token::Number))
-        return std::make_unique<ExprLiteral>(m_lexer.lexemeNumber(m_lexer.m_lexemes[m_position++]));
+    exprptr expr = parseExprPrimary();
+    while (true)
+        if (ifTokenConsumeIt(Token::LeftParen))
+            expr = parseCallArguments(std::move(expr));
+        else
+            break;
 
-    if (isToken(Token::String))
-        return std::make_unique<ExprLiteral>(m_lexer.lexemeString(m_lexer.m_lexemes[m_position++]));
+    return expr;
+}
+
+exprptr Parser::parseCallArguments(exprptr&& expr)
+{
+    std::vector<exprptr> arguments{};
+    if (!isToken(Token::RightParen))
+    {
+        do
+        {
+            if (arguments.size() > 255) // todo: check >255 if ok??
+                log::error(
+                    "Function call has more then 255 arguments at line ",
+                    m_lexer.lineNumber(current())
+                );
+
+            arguments.push_back(parseExpr());
+        } while(ifTokenConsumeIt(Token::Comma));
+    }
+
+    if (!ifTokenConsumeIt(Token::RightParen))
+        throw RuntimeError(log::stringify(
+            "Missing ) after function call at line ",
+            m_lexer.lineNumber(current())
+        ));
+
+    return newptr<ExprCall>(
+        std::move(expr),
+        std::move(arguments),
+        m_lexer.lineNumber(previous())
+    );
+}
+
+exprptr Parser::parseExprPrimary()
+{
+    if (ifTokenConsumeIt(Token::Number))
+        return newptr<ExprLiteral>(
+            m_lexer.lexemeNumber(previous()),
+            m_lexer.lineNumber(previous())
+        );
+
+    if (ifTokenConsumeIt(Token::String))
+        return newptr<ExprLiteral>(
+            m_lexer.lexemeString(previous()),
+            m_lexer.lineNumber(previous())
+        );
 
     if (ifTokenConsumeIt(Token::False))
-        return std::make_unique<ExprLiteral>(false);
+        return newptr<ExprLiteral>(false, m_lexer.lineNumber(previous()));
 
     if (ifTokenConsumeIt(Token::True))
-        return std::make_unique<ExprLiteral>(true);
+        return newptr<ExprLiteral>(true, m_lexer.lineNumber(previous()));
 
     if (ifTokenConsumeIt(Token::Nil))
-        return std::make_unique<ExprLiteral>(std::nullptr_t{});
+        return newptr<ExprLiteral>(std::nullptr_t{}, m_lexer.lineNumber(previous()));
 
-    if (isToken(Token::Identifier))
-        return std::make_unique<ExprVar>(m_lexer.m_lexemes[m_position++]);
+    if (ifTokenConsumeIt(Token::Identifier))
+        return newptr<ExprVariable>(
+            m_lexer.lexemeString(previous()),
+            m_lexer.lineNumber(previous())
+        );
 
     if (ifTokenConsumeIt(Token::LeftParen))
     {
-        ExprPtr expr = parseExpr();
+        exprptr expr = parseExpr();
         if (ifTokenConsumeIt(Token::RightParen))
             return expr;
         else
             throw RuntimeError(log::stringify(
                 "Expression is missing ) at line ",
-                m_lexer.lineNumber(m_lexer.m_lexemes[m_position])
+                m_lexer.lineNumber(current())
             ));
     }
 

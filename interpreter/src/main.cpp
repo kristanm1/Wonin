@@ -2,5 +2,5 @@
 
 int main(int argc, char *argv[])
 {
-    return wonin::run(argc, argv);
+    return wonin::run(argc, argv);;
 }

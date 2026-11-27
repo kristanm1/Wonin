@@ -28,12 +28,13 @@ unordered_map<Token> Lexer::s_keywords =
     { "return", Token::Return },
 };
 
-bool Lexer::scan()
+bool Lexer::scan(std::string const& source)
 {
     m_lexemes.clear();
     m_hasError = false;
     m_position = 0;
-    while (m_position < m_source.size())
+    m_source = &source;
+    while (m_position < (*m_source).size())
         m_position += matchToken();
     
     m_lexemes.emplace_back(m_position, 0, Token::EoF);
@@ -44,9 +45,7 @@ bool Lexer::scan()
 void Lexer::print()
 {
     for (usize i = 0; i < m_lexemes.size(); i++)
-    {
         printLexeme(i);
-    }
 }
 
 void Lexer::printLexeme(usize position) const
@@ -69,7 +68,7 @@ void Lexer::printLexeme(usize position) const
 
 usize Lexer::matchToken()
 {
-    switch (m_source[m_position])
+    switch ((*m_source)[m_position])
     {
     case '(':
         return addLexeme(m_position, 1, Token::LeftParen);
@@ -94,6 +93,12 @@ usize Lexer::matchToken()
 
     case '*':
         return addLexeme(m_position, 1, Token::Star);
+    
+    case ',':
+        return addLexeme(m_position, 1, Token::Comma);
+    
+    case '.':
+        return addLexeme(m_position, 1, Token::Dot);
 
     case '/':
         if (!isEnd(1) && isMatch('/', 1))
@@ -130,14 +135,14 @@ usize Lexer::matchToken()
         return 1;
 
     default:
-        if (utils::isDigit(m_source[m_position]))
+        if (utils::isDigit((*m_source)[m_position]))
             return matchNumber();
-        else if (utils::isAlpha(m_source[m_position]))
+        else if (utils::isAlpha((*m_source)[m_position]))
             return matchIdentifier();
         
         m_hasError = true;
         log::lexerError(
-            log::stringify("Unexpected character ", m_source[m_position]),
+            log::stringify("Unexpected character ", (*m_source)[m_position]),
             lineNumber(m_position)
         );
         
@@ -148,7 +153,7 @@ usize Lexer::matchToken()
 
 strview Lexer::lexemeView(Lexeme const& lexeme) const
 {
-    return std::string_view(&m_source[lexeme.position()], lexeme.length());
+    return std::string_view(&(*m_source)[lexeme.position()], lexeme.length());
 }
 
 str Lexer::lexemeString(Lexeme const& lexeme) const
@@ -158,7 +163,7 @@ str Lexer::lexemeString(Lexeme const& lexeme) const
 
 double Lexer::lexemeNumber(Lexeme const& lexeme) const
 {
-    char const* begin = &m_source[lexeme.position()];
+    char const* begin = &(*m_source)[lexeme.position()];
     char* end = const_cast<char*>(begin) + lexeme.length();
     return std::strtod(begin, &end);
 }
@@ -167,7 +172,7 @@ usize Lexer::lineNumber(usize position) const
 {
     usize line = 1;
     for (usize i = 0; i < position; i++)
-        if (m_source[i] == '\n')
+        if ((*m_source)[i] == '\n')
             line++;
 
     return line;
@@ -248,7 +253,7 @@ usize Lexer::matchIdentifier()
         offset++;
     }
 
-    auto it = s_keywords.find(std::string_view(&m_source[m_position], offset));
+    auto it = s_keywords.find(std::string_view(&(*m_source)[m_position], offset));
     if (it != s_keywords.end())
         return addLexeme(m_position, offset, it->second);
     return addLexeme(m_position, offset, Token::Identifier);

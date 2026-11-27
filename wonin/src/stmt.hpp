@@ -1,87 +1,140 @@
 #ifndef _WONIN_STATEMENT_
 #define _WONIN_STATEMENT_
 
+#include "types.hpp"
+#include "expr.hpp"
 #include "visitor.hpp"
 
 #include <memory>
+#include <vector>
 
 namespace wonin
 {
+
     struct Lexeme;
-    struct Expr;
     struct Stmt
     {
+        Stmt(usize lineNumber) : m_lineNumber(lineNumber) {}
+
         virtual      ~Stmt()                              = default;
         virtual void accept(Visitor const& visitor) const = 0;
+
+        usize lineNumber() { return m_lineNumber; }
+
+    private:
+        usize m_lineNumber;
     };
 
-    using StmtPtr = std::unique_ptr<Stmt>;
+    using stmtptr  = std::shared_ptr<Stmt>;
+    using stmtlist = std::vector<stmtptr>;
+    using strlist  = std::vector<str>;
 
     struct StmtExpr : Stmt
     {
-        StmtExpr(ExprPtr&& expr) : m_expr(std::move(expr)) {}
+        StmtExpr(exprptr&& expr, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_expr(std::move(expr))
+        {}
 
         void accept(Visitor const& visitor) const override { visitor.visit(*this); }
 
-        ExprPtr m_expr;
+        exprptr m_expr;
     };
 
     struct StmtPrint : Stmt
     {
-        StmtPrint(ExprPtr&& expr) : m_expr(std::move(expr)) {}
+        StmtPrint(exprptr&& expr, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_expr(std::move(expr))
+        {}
 
         void accept(Visitor const& visitor) const override { visitor.visit(*this); }
 
-        ExprPtr m_expr;
+        exprptr m_expr;
+    };
+
+    struct StmtReturn : Stmt
+    {
+        StmtReturn(exprptr&& expr, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_expr(std::move(expr))
+        {}
+
+        void accept(Visitor const& visitor) const override { visitor.visit(*this); }
+
+        exprptr m_expr;
     };
 
     struct StmtVarDecl : Stmt
     {
-        StmtVarDecl(Lexeme const& variable, ExprPtr&& initializer)
-            : m_variable(variable), m_initializer(std::move(initializer))
+        StmtVarDecl(str&& name, exprptr&& initializer, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_name(name)
+            , m_initializer(std::move(initializer))
         {}
         
         void accept(Visitor const& visitor) const override { visitor.visit(*this); }
 
-        Lexeme const& m_variable;
-        ExprPtr m_initializer;
+        str     m_name;
+        exprptr m_initializer;
+    };
+
+    struct StmtFunDecl : Stmt
+    {
+        StmtFunDecl(str&& name, strlist&& parameters, stmtlist&& body, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_name(std::move(name))
+            , m_parameters(std::move(parameters))
+            , m_body(std::move(body))
+        {}
+
+        void accept(Visitor const& visitor) const override { visitor.visit(*this); }
+        
+        str      m_name;
+        strlist  m_parameters;
+        stmtlist m_body;
     };
 
     struct StmtBlock : Stmt
     {
-        StmtBlock(std::vector<StmtPtr>&& stmts) : m_stmts(std::move(stmts)) {}
+        StmtBlock(stmtlist&& stmts, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_stmts(std::move(stmts))
+        {}
 
         void accept(Visitor const& visitor) const override { visitor.visit(*this); }
 
-        std::vector<StmtPtr> m_stmts;
+        stmtlist m_stmts;
     };
 
     struct StmtIf : Stmt
     {
-        StmtIf(ExprPtr&& condition, StmtPtr&& stmtThen, StmtPtr&& stmtElse)
-            : m_condition(std::move(condition))
+        StmtIf(exprptr&& condition, stmtptr&& stmtThen, stmtptr&& stmtElse, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_condition(std::move(condition))
             , m_stmtThen(std::move(stmtThen))
             , m_stmtElse(std::move(stmtElse))
         {}
 
         void accept(Visitor const& visitor) const override { visitor.visit(*this); }
 
-        ExprPtr m_condition;
-        StmtPtr m_stmtThen;
-        StmtPtr m_stmtElse;
+        exprptr m_condition;
+        stmtptr m_stmtThen;
+        stmtptr m_stmtElse;
     };
 
     struct StmtWhile : Stmt
     {
-        StmtWhile(ExprPtr&& condition, StmtPtr&& body)
-            : m_condition(std::move(condition))
+        StmtWhile(exprptr&& condition, stmtptr&& body, usize lineNumber)
+            : Stmt(lineNumber)
+            , m_condition(std::move(condition))
             , m_body(std::move(body))
         {}
 
         void accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        ExprPtr m_condition;
-        StmtPtr m_body;
+        exprptr m_condition;
+        stmtptr m_body;
     };
 }
 

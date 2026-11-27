@@ -17,16 +17,14 @@ namespace wonin
         friend class Interpreter;
 
     public:
-        Lexer(std::string const& source) : m_source(source) {};
-
-        bool scan();
+        bool scan(std::string const& source);
         void print();
 
     private:
-        bool isEnd(usize offset)          const { return m_position + offset >= m_source.size(); }
-        bool isMatch(chr c, usize offset) const { return c == m_source[m_position + offset]; }
-        bool isDigit(usize offset)        const { return utils::isDigit(m_source[m_position + offset]); }
-        bool isAlphaNumeric(usize offset) const { return utils::isAlphaNumeric(m_source[m_position + offset]); }
+        bool isEnd(usize offset)          const { return m_position + offset >= m_source->size(); }
+        bool isMatch(chr c, usize offset) const { return c == (*m_source)[m_position + offset]; }
+        bool isDigit(usize offset)        const { return utils::isDigit((*m_source)[m_position + offset]); }
+        bool isAlphaNumeric(usize offset) const { return utils::isAlphaNumeric((*m_source)[m_position + offset]); }
 
         usize addLexeme(usize position, usize length, Token token);
         usize matchLineComment();
@@ -47,7 +45,7 @@ namespace wonin
         static unordered_map<Token> s_keywords;
         
     private:
-        std::string const&  m_source;
+        str const*          m_source;
         std::vector<Lexeme> m_lexemes{};
         usize               m_position = 0;
         bool                m_hasError = false;

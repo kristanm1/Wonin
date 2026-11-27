@@ -3,14 +3,28 @@
 #include "log.hpp"
 #include "expr.hpp"
 #include "stmt.hpp"
+#include "callable.hpp"
 
 using namespace wonin;
 
-bool Interpreter::interpret(Environment& environment) const
+Interpreter::Interpreter()
+    : m_environment(EnvironmentManager::create())
 {
-    m_environment = &environment;
+    m_environment.define("clock", Value(std::make_shared<CallableClock>()));
+}
 
-    for (auto const& stmt : m_parser.m_stmts)
+Interpreter::Interpreter(Environment* parent)
+    : m_environment(EnvironmentManager::create(parent))
+{}
+
+Interpreter::~Interpreter()
+{
+    EnvironmentManager::remove(&m_environment);
+}
+
+bool Interpreter::interpret(Parser const& parser) const
+{
+    for (auto const& stmt : parser.m_stmts)
     {
         try
         {
@@ -26,50 +40,48 @@ bool Interpreter::interpret(Environment& environment) const
     return true;
 }
 
-Value Interpreter::visit(ExprLiteral const& expr) const
+Value Interpreter::visit(ExprLiteral const& literal) const
 {
-    return expr.m_data;
+    return literal.m_data;
 }
 
-Value Interpreter::visit(ExprGrouping const& expr) const
+Value Interpreter::visit(ExprGrouping const& group) const
 {
-    return expr.m_expr->accept(*this);
+    return group.m_expr->accept(*this);
 }
 
-Value Interpreter::visit(ExprVar const& expr) const
+Value Interpreter::visit(ExprVariable const& variable) const
 {
-    auto var = m_parser.m_lexer.lexemeView((expr.m_lexeme));
     try
     {
-        return (*m_environment)[var];
+        return m_environment.get(variable.m_name);
     }
     catch(RuntimeError const& err)
     {
         throw RuntimeError(log::stringify(
-            err.what(), " at line ",
-            m_parser.m_lexer.lineNumber(expr.m_lexeme)
+            err.what(), " at line ", variable.lineNumber()
         ));
     }
 }
 
-Value Interpreter::visit(ExprLogical const& expr)  const
+Value Interpreter::visit(ExprLogical const& logical)  const
 {
-    Value left = expr.m_left->accept(*this);
-    if (expr.m_op.token() == Token::Or)
+    Value left = logical.m_left->accept(*this);
+    if (logical.m_op == Token::Or)
         if (left.getBool())
             return left;
     
     if (!left.getBool())
         return left;
     
-    return expr.m_right->accept(*this);
+    return logical.m_right->accept(*this);
 }
 
-Value Interpreter::visit(ExprUnary const& expr) const
+Value Interpreter::visit(ExprUnary const& unary) const
 {
-    Value value = expr.m_expr->accept(*this);
+    Value value = unary.m_expr->accept(*this);
 
-    switch (expr.m_op.token())
+    switch (unary.m_op)
     {
     case Token::Minus:
         return -value;
@@ -79,17 +91,17 @@ Value Interpreter::visit(ExprUnary const& expr) const
 
     default:
         throw RuntimeError(log::stringify(
-            "Invalid unary operator ", expr.m_op.cstrToken(), " at line ",
-            m_parser.m_lexer.lineNumber(expr.m_op)
+            "Invalid unary operator ", Lexeme::cstrToken(unary.m_op),
+            " at line ", unary.lineNumber()
         ));   
     }
 }
 
-Value Interpreter::visit(ExprBinary const& expr) const
+Value Interpreter::visit(ExprBinary const& binary) const
 {
-    Value left = expr.m_left->accept(*this);
-    Value right = expr.m_right->accept(*this);
-    switch (expr.m_op.token())
+    Value left = binary.m_left->accept(*this);
+    Value right = binary.m_right->accept(*this);
+    switch (binary.m_op)
     {
     case Token::Plus:
         return left + right;
@@ -123,27 +135,38 @@ Value Interpreter::visit(ExprBinary const& expr) const
     
     default:
         throw RuntimeError(log::stringify(
-            "Invalid binary operator ", expr.m_op.cstrToken(), " at line ",
-                m_parser.m_lexer.lineNumber(expr.m_op)
+            "Invalid binary operator ", Lexeme::cstrToken(binary.m_op),
+            " at line ", binary.lineNumber()
         ));
     }    
 }
 
-Value Interpreter::visit(ExprAsgn const& expr) const
+Value Interpreter::visit(ExprAsgn const& assign) const
 {
-    try
-    {
-        auto var = m_parser.m_lexer.lexemeView(expr.m_lexeme);
-        m_environment->assign(var, expr.m_expr->accept(*this));
-        return (*m_environment)[var];
-    }
-    catch (RuntimeError const& err)
-    {
+    m_environment.assign(assign.m_name, assign.m_expr->accept(*this));
+    return m_environment.get(assign.m_name);
+}
+
+Value Interpreter::visit(ExprCall const& call) const
+{
+    Value callee = call.m_callee->accept(*this);
+    if (!callee.isCallable())
         throw RuntimeError(log::stringify(
-            err.what(), " at line ",
-            m_parser.m_lexer.lineNumber(expr.m_lexeme)
+            "Invalid call invocation at line ", call.lineNumber()
         ));
-    }
+
+    std::vector<Value> arguments{};
+    for (exprptr const& arg : call.m_arguments)
+        arguments.push_back(arg->accept(*this));
+    
+    Callable& callable = callee.getCallable();
+    if (callable.arity() != arguments.size())
+        throw RuntimeError(log::stringify(
+            callable.name(), " expected ", callable.arity(), " arguments but got ",
+            arguments.size(), " at line ", call.lineNumber()
+        ));
+
+    return callable(arguments);
 }
 
 void Interpreter::visit(StmtExpr const& stmt) const
@@ -163,6 +186,9 @@ void Interpreter::visit(StmtPrint const& stmt) const
     else if (value.isBool())
         log::info(value.getBool() ? "true" : "false");
 
+    else if (value.isCallable())
+        log::info("<fun ", value.getCallable().name(), ">");
+
     else if (value.isNull())
         log::info("null");
 
@@ -170,49 +196,42 @@ void Interpreter::visit(StmtPrint const& stmt) const
         log::info("void");
 }
 
+void Interpreter::visit(StmtReturn const& stmt) const
+{
+    Value value = nullptr;
+    if (stmt.m_expr != nullptr)
+        value = stmt.m_expr->accept(*this);
+
+    throw Return(std::move(value));
+}
+
 void Interpreter::visit(StmtVarDecl const& stmt) const
 {
-    if (stmt.m_initializer.get())
-        m_environment->define(
-            m_parser.m_lexer.lexemeString(stmt.m_variable),
-            stmt.m_initializer->accept(*this)
-        );
-    else
-        m_environment->define(
-            m_parser.m_lexer.lexemeString(stmt.m_variable),
-            Value(std::nullptr_t{})
-        );
+    m_environment.define(
+        stmt.m_name,
+        stmt.m_initializer.get()
+            ? stmt.m_initializer->accept(*this)
+            : Value(std::nullptr_t{})
+    );
+}
+
+void Interpreter::visit(StmtFunDecl const& function) const
+{
+    m_environment.define(
+        function.m_name,
+        Value(std::make_shared<CallableFunction>(function, m_environment))
+    );
 }
 
 void Interpreter::visit(StmtBlock const& stmt) const
 {
-    Environment wrapper(m_environment);
-    executeBlock(stmt.m_stmts, wrapper);
+    Interpreter(&m_environment).executeBlock(stmt.m_stmts);
 }
 
-void Interpreter::executeBlock(
-    std::vector<StmtPtr> const& stmts,
-    Environment& environment
-) const
+void Interpreter::executeBlock(std::vector<stmtptr> const& stmts) const
 {
-    Environment *previousEnvironment = m_environment;
-    m_environment = &environment;
-
-    try
-    {
-        for (auto const& stmt : stmts)
-            stmt->accept(*this);
-    }
-    catch (RuntimeError const& err)
-    {
-        m_environment = previousEnvironment;
-
-        throw RuntimeError(log::stringify(
-            err.what() + " todo: more info.."
-        ));
-    }
-
-    m_environment = previousEnvironment;
+    for (auto const& stmt : stmts)
+        stmt->accept(*this);
 }
 
 void Interpreter::visit(StmtIf const& stmt) const

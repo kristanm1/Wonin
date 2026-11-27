@@ -14,31 +14,36 @@ namespace wonin
 
     class Interpreter : public Visitor
     {
+        friend class CallableFunction;
     public:
-        Interpreter(Parser const& parser) : m_parser(parser) {}
+        Interpreter();
+        Interpreter(Environment* parent);
 
-        bool interpret(Environment& environment) const;
+        ~Interpreter();
+        
+        bool interpret(Parser const& parser) const;
 
-    private:
-        Value visit(ExprLiteral const& expr)  const override;
-        Value visit(ExprGrouping const& expr) const override;
-        Value visit(ExprVar const& expr)      const override;
-        Value visit(ExprLogical const& expr)  const override;
-        Value visit(ExprUnary const& expr)    const override;
-        Value visit(ExprBinary const& expr)   const override;
-        Value visit(ExprAsgn const& expr)     const override;
+        Value visit(ExprLiteral const& literal)   const override;
+        Value visit(ExprGrouping const& group)    const override;
+        Value visit(ExprVariable const& variable) const override;
+        Value visit(ExprLogical const& logical)   const override;
+        Value visit(ExprUnary const& unary)       const override;
+        Value visit(ExprBinary const& binary)     const override;
+        Value visit(ExprAsgn const& assign)       const override;
+        Value visit(ExprCall const& call)         const override;
 
-        void visit(StmtExpr const& stmt)    const override;
-        void visit(StmtPrint const& stmt)   const override;
-        void visit(StmtVarDecl const& stmt) const override;
-        void visit(StmtBlock const& stmt)   const override;
-        void visit(StmtIf const& stmt)      const override;
-        void visit(StmtWhile const& stmt)   const override;
+        void visit(StmtExpr const& stmt)       const override;
+        void visit(StmtPrint const& stmt)      const override;
+        void visit(StmtReturn const& stmt)     const override;
+        void visit(StmtVarDecl const& stmt)    const override;
+        void visit(StmtFunDecl const& funtion) const override;
+        void visit(StmtBlock const& stmt)      const override;
+        void visit(StmtIf const& stmt)         const override;
+        void visit(StmtWhile const& stmt)      const override;
 
-        void executeBlock(std::vector<StmtPtr> const& stmts, Environment& environment) const;
+        void executeBlock(std::vector<stmtptr> const& stmts) const;
 
-        Parser const& m_parser;
-        mutable Environment* m_environment = nullptr;
+        Environment& m_environment;
     };
 
 }

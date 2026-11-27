@@ -36,15 +36,14 @@ namespace wonin
             , m_token(token)
         {}
 
-        usize      position() const { return m_position; }
-        usize      length()   const { return m_length; }
-        Token      token()    const { return m_token; }
-
-        cstr cstrToken() const { return cstrToken(m_token); }
-
-    private:
         static cstr cstrToken(Token token);
 
+        usize      position()  const { return m_position; }
+        usize      length()    const { return m_length; }
+        Token      token()     const { return m_token; }
+        cstr       cstrToken() const { return cstrToken(m_token); }
+
+    private:
         usize m_position;
         usize m_length;
         Token m_token;

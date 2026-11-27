@@ -1,26 +1,40 @@
 #ifndef _WONIN_EXPR_
 #define _WONIN_EXPR_
 
+#include "lexeme.hpp"
 #include "visitor.hpp"
 
 #include <memory>
+#include <vector>
 #include <variant>
 
 namespace wonin
 {
 
+    struct Lexeme;
     struct Expr
     {
+        Expr(usize lineNumber) : m_lineNumber(lineNumber) {}
+
         virtual       ~Expr() = default;
         virtual Value accept(Visitor const& visitor) const = 0;
+
+        usize lineNumber() const { return m_lineNumber; }
+
+    private:
+        usize m_lineNumber;
     };
 
-    using ExprPtr = std::unique_ptr<Expr>;
+    using exprptr = std::shared_ptr<Expr>;
+    using exprlist = std::vector<exprptr>;
 
     struct ExprLiteral : Expr
     {
         template<typename T>
-        ExprLiteral(T&& data) : m_data(std::forward<T>(data)) {}
+        ExprLiteral(T&& data, usize lineNumber)
+            : Expr(lineNumber)
+            , m_data(std::forward<T>(data))
+        {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
@@ -29,77 +43,102 @@ namespace wonin
 
     struct ExprGrouping : Expr
     {
-        ExprGrouping(ExprPtr&& expr) : m_expr(std::move(expr)) {}
+        ExprGrouping(exprptr&& expr, usize lineNumber)
+            : Expr(lineNumber)
+            , m_expr(std::move(expr))
+        {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
         
-        ExprPtr m_expr;
+        exprptr m_expr;
     };
 
     struct ExprUnary : Expr
     {
-        ExprUnary(Lexeme const& op, ExprPtr&& expr)
-            : m_op(op)
+        ExprUnary(Token op, exprptr&& expr, usize lineNumber)
+            : Expr(lineNumber)
+            , m_op(op)
             , m_expr(std::move(expr))
         {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme const& m_op;
-        ExprPtr m_expr;
+        Token   m_op;
+        exprptr m_expr;
     };
 
     struct ExprBinary : Expr
     {
-        ExprBinary(Lexeme const& op, ExprPtr&& left, ExprPtr&& right)
-            : m_op(op)
+        ExprBinary(Token op, exprptr&& left, exprptr&& right, usize lineNumber)
+            : Expr(lineNumber)
+            , m_op(op)
             , m_left(std::move(left))
             , m_right(std::move(right))
         {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme const& m_op;
-        ExprPtr m_left;
-        ExprPtr m_right;
+        Token   m_op;
+        exprptr m_left;
+        exprptr m_right;
     };
 
-    struct ExprVar : Expr
+    struct ExprVariable : Expr
     {
-        ExprVar(Lexeme const& lexeme) : m_lexeme(lexeme) {}
+        ExprVariable(str&& name, usize lineNumber)
+            : Expr(lineNumber)
+            , m_name(std::move(name))
+        {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme const& m_lexeme;
+        str m_name;
     };
 
     struct ExprAsgn : Expr
     {
-        ExprAsgn(Lexeme lexeme, ExprPtr&& expr)
-            : m_lexeme(lexeme)
+        ExprAsgn(str&& name, exprptr&& expr, usize lineNumber)
+            : Expr(lineNumber)
+            , m_name(std::move(name))
             , m_expr(std::move(expr))
         {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme m_lexeme;
-        ExprPtr m_expr;
+        str     m_name;
+        exprptr m_expr;
     };
 
     struct ExprLogical : Expr
     {
-        ExprLogical(Lexeme const& op, ExprPtr&& left, ExprPtr&& right)
-            : m_op(op)
+        ExprLogical(Token op, exprptr&& left, exprptr&& right, usize lineNumber)
+            : Expr(lineNumber)
+            , m_op(op)
             , m_left(std::move(left))
             , m_right(std::move(right))
         {}
 
         Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
 
-        Lexeme const& m_op;
-        ExprPtr       m_left;
-        ExprPtr       m_right;
+        Token   m_op;
+        exprptr m_left;
+        exprptr m_right;
     };
+
+    struct ExprCall : Expr
+    {
+        ExprCall(exprptr&& callee, std::vector<exprptr>&& arguments, usize lineNumber)
+            : Expr(lineNumber)
+            , m_callee(std::move(callee))
+            , m_arguments(std::move(arguments))
+        {}
+
+        Value accept(Visitor const& visitor) const override { return visitor.visit(*this); }
+
+        exprptr  m_callee;
+        exprlist m_arguments;
+    };
+
 }
 
 #endif

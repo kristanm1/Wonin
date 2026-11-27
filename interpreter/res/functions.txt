@@ -1,0 +1,47 @@
+fun greeting(first, last) {
+    print "Welcome " + first + " " + last + "!";
+}
+
+fun farewell(first, last) {
+    print "Goodbye " + first + " " + last + "!";
+}
+
+fun fib(n) {
+    if (n < 2)
+    {
+        return n;
+    }
+
+    return fib(n - 1) + fib(n - 2);
+}
+
+fun closure() {
+    var i = 0;
+    fun counter() {
+        i = i + 1;
+        return i;
+    }
+    return counter;
+}
+
+var first = "Dear";
+var last = "Watcher";
+
+greeting(first, last);
+
+var start = clock();
+print fib(0);
+print fib(1);
+print fib(2);
+print fib(3);
+print fib(4);
+print fib(5);
+print fib(6);
+print clock() - start;
+
+var cf = closure();
+print cf;
+print cf();
+print cf();
+
+farewell(first, last);

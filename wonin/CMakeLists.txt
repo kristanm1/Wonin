@@ -11,6 +11,7 @@ add_library(wonin
         src/parser.cpp
         src/value.cpp
         src/environment.cpp
+        src/callable.cpp
         src/interpreter.cpp
         src/wonin.cpp
 )

@@ -9,7 +9,7 @@
     #if NDEBUG
         #define DBREAK()
     #else
-        #define DBREAK() __debugbreak();
+        #define DBREAK() __debugbreak()
     #endif
 #else
     #define DBREAK()
