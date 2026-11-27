@@ -11,7 +11,7 @@ A tree-walking interpreter for a small scripting language written in C++
 - Arithmetic: `+`, `-`, `*`, `/`, unary `-` and grouping with `( )`
 - Variables: `var` declarations and assignment
 - Block scoping with nested environments (`{ ... }`)
-- Function declarations and calls, closured with captured environment
+- Functions: `fun` closures with captured environment, calls
 - `print` statements and `//` line comments
 - Interactive REPL and script execution
 
