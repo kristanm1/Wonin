@@ -26,7 +26,7 @@ namespace wonin
 
     private:
         bool isToken(Token token) const { return m_lexer.m_lexemes[m_position].token() == token; }
-        bool isEnd()              const { return m_position >= m_lexer.m_lexemes.size() || isToken(Token::EoF); }
+        bool isEnd()              const { return isToken(Token::EoF); }
         
         template<unsigned N>
         bool ifTokenConsumeIt(Token const* tokens);

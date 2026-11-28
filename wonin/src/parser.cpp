@@ -53,10 +53,10 @@ void Parser::sync()
 {
     Token tokens[] = {
         Token::Semicolon, Token::Class, Token::Fun, Token::Var, Token::For,
-        Token::If, Token::While, Token::Print, Token::Return, Token::EoF
+        Token::If, Token::While, Token::Print, Token::Return
     };
 
-    while (!ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens)) {}
+    while (!isEnd() && !ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens)) {}
 }
 
 stmtptr Parser::parseDecl()
@@ -369,12 +369,11 @@ exprptr Parser::parseExprAsgn()
     if (ifTokenConsumeIt(Token::Equal))
     {
         Lexeme const& lexeme = previous();
-        exprptr value = parseExprAsgn();
         auto *exprVar = dynamic_cast<ExprVariable*>(expr.get());
         if (exprVar != nullptr)
             return newptr<ExprAsgn>(
                 std::move(exprVar->m_name),
-                std::move(value),
+                parseExprAsgn(),
                 m_lexer.lineNumber(lexeme)
             );
 
@@ -390,13 +389,16 @@ exprptr Parser::parseExprAsgn()
 exprptr Parser::parseExprOr()
 {
     exprptr expr = parseExprAnd();
-    while (ifTokenConsumeIt(Token::Or))   
+    while (ifTokenConsumeIt(Token::Or))
+    {
+        Lexeme const& op = previous();
         expr = newptr<ExprLogical>(
-            previous().token(),
+            op.token(),
             std::move(expr),
             parseExprAnd(),
-            m_lexer.lineNumber(previous())
+            m_lexer.lineNumber(op)
         );
+    }
 
     return expr;
 }
@@ -405,12 +407,15 @@ exprptr Parser::parseExprAnd()
 {
     exprptr expr = parseExprEquality();
     while (ifTokenConsumeIt(Token::And))
+    {
+        Lexeme const& op = previous();
         expr = newptr<ExprLogical>(
-            previous().token(),
+            op.token(),
             std::move(expr),
             parseExprEquality(),
-            m_lexer.lineNumber(previous())
+            m_lexer.lineNumber(op)
         );
+    }
 
     return expr;
 }
@@ -422,14 +427,14 @@ exprptr Parser::parseExprEquality()
     while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
         Lexeme const& lexeme = previous();
-        exprptr right = parseExprComparison();
         expr = newptr<ExprBinary>(
             lexeme.token(),
             std::move(expr),
-            std::move(right),
+            parseExprComparison(),
             m_lexer.lineNumber(lexeme)
         );
     }
+
     return expr;
 }
 
@@ -440,11 +445,10 @@ exprptr Parser::parseExprComparison()
     while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
         Lexeme const& lexeme = previous();
-        exprptr right = parseExprTerm();
         expr = newptr<ExprBinary>(
             lexeme.token(),
             std::move(expr),
-            std::move(right),
+            parseExprTerm(),
             m_lexer.lineNumber(lexeme)
         );
     }
@@ -458,14 +462,14 @@ exprptr Parser::parseExprTerm()
     while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
         Lexeme const& lexeme = previous();
-        exprptr right = parseExprFactor();
         expr = newptr<ExprBinary>(
             lexeme.token(),
             std::move(expr),
-            std::move(right),
+            parseExprFactor(),
             m_lexer.lineNumber(lexeme)
         );
     }
+
     return expr;
 }
 
@@ -476,14 +480,14 @@ exprptr Parser::parseExprFactor()
     while (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
         Lexeme const& lexeme = previous();
-        exprptr right = parseExprUnary();
         expr = newptr<ExprBinary>(
             lexeme.token(),
             std::move(expr),
-            std::move(right),
+            parseExprUnary(),
             m_lexer.lineNumber(lexeme)
         );
     }
+
     return expr;
 }
 
@@ -493,13 +497,13 @@ exprptr Parser::parseExprUnary()
     if (ifTokenConsumeIt<sizeof(tokens) / sizeof(tokens[0])>(tokens))
     {
         Lexeme const& lexeme = previous();
-        exprptr right = parseExprUnary();
         return newptr<ExprUnary>(
             lexeme.token(),
-            std::move(right),
+            parseExprUnary(),
             m_lexer.lineNumber(lexeme)
         );
     }
+    
     return parseExprCall();
 }
 

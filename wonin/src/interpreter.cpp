@@ -70,9 +70,10 @@ Value Interpreter::visit(ExprLogical const& logical)  const
     if (logical.m_op == Token::Or)
         if (left.getBool())
             return left;
-    
-    if (!left.getBool())
-        return left;
+
+    if (logical.m_op == Token::And)
+        if (!left.getBool())
+            return left;
     
     return logical.m_right->accept(*this);
 }
